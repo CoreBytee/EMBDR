@@ -1,0 +1,24 @@
+{
+	"Id": "EMBDR",
+	"Name": "EMBDR",
+	"Description": "EMBDR",
+	"Version": "1.0.0",
+	"Authors": {
+		"Developers": [
+			"CoreByte"
+		],
+		"Contributors": []
+	},
+	"Contact": {
+		"Website": "",
+		"Source": "",
+		"Socials": {}
+	},
+	"Dependencies": [
+		"npm+discord.js@14.12.1",
+		"npm+links-finder@1.0.0"
+	],
+	"Entrypoints": {
+		"Main": "me.corebyte.EMBDR"
+	}
+}
