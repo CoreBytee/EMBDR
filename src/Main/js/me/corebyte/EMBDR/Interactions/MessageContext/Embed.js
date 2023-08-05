@@ -1,0 +1,22 @@
+const DiscordJs = require("discord.js")
+const ContextMenuCommandBuilder = DiscordJs.ContextMenuCommandBuilder
+const ApplicationCommandType = DiscordJs.ApplicationCommandType
+
+const TryEmbed = Import("me.corebyte.EMBDR.Helper.TryEmbed")
+
+module.exports = {
+    Type: "MessageContext",
+    Name: "Embed Links",
+
+    Data: new ContextMenuCommandBuilder()
+        .setName("Embed Links")
+        .setType(ApplicationCommandType.Message),
+
+    Handler: async function(Interaction) {
+        console.log()
+        console.log("asd")
+
+        const Message = Interaction.targetMessage
+        return await TryEmbed(Message, Interaction)
+    }
+}
