@@ -1,12 +1,9 @@
 const ListLinks = Import("me.corebyte.EMBDR.Helper.ListLinks")
+const MatchSource = Import("me.corebyte.EMBDR.Helper.MatchSource")
 
 module.exports = function(Message, Interaction) {
-    console.log(Message)
-
     const MessageContent = Message.content
     const MessageLinks = ListLinks(MessageContent)
-
-    console.log(MessageLinks)
 
     if (MessageLinks.length == 0) {
         if (Interaction) {
@@ -20,6 +17,44 @@ module.exports = function(Message, Interaction) {
         }
         return
     }
+
+    const ProcessedLinks = []
+
+    for (const Link of MessageLinks) {
+        const SourceData = MatchSource(Link)
+
+        if (!SourceData) { continue }
+        if (SourceData.PreProcess) {
+            const PreProcessedLink = SourceData.PreProcess(Link)
+            if (PreProcessedLink) {
+                ProcessedLinks.push(PreProcessedLink)
+            }
+        }
+    }
+
+    const MissingCount = MessageLinks.length - ProcessedLinks.length
+    if (MissingCount > 0 && Interaction) {
+        Interaction.reply(
+            {
+                content: `Some links (${MissingCount}) did not have any connected extractors and will be missing.`,
+                ephemeral: true
+            }
+        )
+    }
+
+    const ExtractionMessages = []
+
+    for (const Link of ProcessedLinks) {
+        Message.channel.send(
+            {
+                embeds: [
+                    
+                ]
+            }
+        )
+    }
+
+
 
     
 }
