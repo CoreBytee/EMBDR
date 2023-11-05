@@ -1,5 +1,5 @@
 node_modules
-bin
+Binaries
 package-lock.json
 package.json
 Config.json
