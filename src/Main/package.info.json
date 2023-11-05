@@ -16,7 +16,7 @@
 	},
 	"Dependencies": [
 		"npm+discord.js@14.12.1",
-		"npm+links-finder@1.0.0",
+		"npm+extract-urls@1.4.0",
 		"npm+fs-extra@11.1.1"
 	],
 	"Entrypoints": {
