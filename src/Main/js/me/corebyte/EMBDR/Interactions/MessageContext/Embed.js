@@ -13,9 +13,6 @@ module.exports = {
         .setType(ApplicationCommandType.Message),
 
     Handler: async function(Interaction) {
-        console.log()
-        console.log("asd")
-
         const Message = Interaction.targetMessage
         return await TryEmbed(Message, Interaction)
     }
