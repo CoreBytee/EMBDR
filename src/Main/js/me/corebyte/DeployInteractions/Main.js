@@ -2,17 +2,12 @@ const DiscordJs = require("discord.js")
 
 const Logger = TypeWriter.CreateLogger("InteractionDeployer")
 
-return async function(Interactions, Client, Rest, GuildId) {
+return async function(Interactions, Client, Rest) {
     Logger.Information("Deploying interactions...")
 
     Rest.put(
         DiscordJs.Routes.applicationCommands(Client.user.id),
         { body: Interactions.map(Interaction => Interaction.Data.toJSON()) }
-    )
-
-    Rest.put(
-        DiscordJs.Routes.applicationGuildCommands(Client.user.id, GuildId),
-        { body: [] }
     )
 
     Logger.Information("Deployed interactions...")
@@ -26,7 +21,7 @@ return async function(Interactions, Client, Rest, GuildId) {
                 Type = "MessageContext"
             }
 
-            TypeWriter.Logger.Information(`Received ${Type} interaction...`)
+            Logger.Information(`Received ${Type} interaction...`)
 
             var FoundInteraction = Interactions.find(
                 function(Interaction) {
@@ -35,7 +30,7 @@ return async function(Interactions, Client, Rest, GuildId) {
             )
 
             if (!FoundInteraction || !FoundInteraction.Handler) {
-                TypeWriter.Logger.Error(`Handler for ${Type} interaction not found name ${ReceivedInteraction.commandName}`)
+                Logger.Error(`Handler for ${Type} interaction not found name ${ReceivedInteraction.commandName}`)
                 return
             }
 
