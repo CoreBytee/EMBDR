@@ -1,7 +1,7 @@
-const ListLinks = Import("me.corebyte.EMBDR.Helper.ListLinks")
-const MatchSource = Import("me.corebyte.EMBDR.Helper.MatchSource")
+const ListLinks = await Import("me.corebyte.EMBDR.Helper.ListLinks")
+const MatchSource = await Import("me.corebyte.EMBDR.Helper.MatchSource")
 
-module.exports = function(Message, Interaction) {
+return function(Message, Interaction) {
     const MessageContent = Message.content
     const MessageLinks = ListLinks(MessageContent)
 

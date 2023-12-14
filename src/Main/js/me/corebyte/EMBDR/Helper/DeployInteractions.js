@@ -1,6 +1,6 @@
 const DiscordJs = require("discord.js")
 
-module.exports = async function() {
+return async function() {
     TypeWriter.Logger.Information("Deploying interactions...")
 
     EMBDR.DiscordRest.put(

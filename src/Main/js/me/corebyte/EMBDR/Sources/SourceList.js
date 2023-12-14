@@ -1,4 +1,5 @@
 module.exports = [
+return [
     // {
     //     Name: "Youtube",
     //     Domains: [
@@ -25,4 +26,5 @@ module.exports = [
             return false
         }
     }
+    
 ]

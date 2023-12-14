@@ -1,6 +1,6 @@
-const SourceList = Import("me.corebyte.EMBDR.Sources.SourceList")
+const SourceList = await Import("me.corebyte.EMBDR.Sources.SourceList")
 
-module.exports = function(Url) {
+return function(Url) {
     TypeWriter.Logger.Information(`Matching source for ${Url}`)
 
     const UrlData = new URL(Url)

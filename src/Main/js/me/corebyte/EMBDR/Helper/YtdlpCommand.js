@@ -9,6 +9,6 @@ const YtdlpPath = Path.join(
 
 console.log(YtdlpPath)
 
-module.exports = function(Arguments=[]) {
+return function(Arguments=[]) {
     console.log(ChildProcess.spawnSync(YtdlpPath))
 }

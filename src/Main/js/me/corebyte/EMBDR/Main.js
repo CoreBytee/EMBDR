@@ -3,7 +3,7 @@ console.log("Hello World!")
 const FS = require("fs-extra")
 const DiscordJs = require("discord.js")
 
-// module.exports = async function() {
+// return async function() {
 
 //     globalThis.LingBot = {
 //         Words: Import("me.corebyte.LingBot.Words"),
@@ -44,11 +44,10 @@ const DiscordJs = require("discord.js")
 
 // }
 
-async function Main() {
 
     globalThis.EMBDR = {
         Config: FS.readJSONSync("./Config.json"),
-        Sources: Import("me.corebyte.EMBDR.Sources.SourceList"),
+        Sources: await Import("me.corebyte.EMBDR.Sources.SourceList"),
         Client: new DiscordJs.Client(
             {
                 intents: [3276799],
@@ -56,14 +55,10 @@ async function Main() {
         ),
         DiscordRest: new DiscordJs.REST({ version: "10" }),
 
-        Interactions: Import("me.corebyte.EMBDR.Interactions.Main")
+        Interactions: await Import("me.corebyte.EMBDR.Interactions.Main")
     }
 
     EMBDR.DiscordRest.setToken(EMBDR.Config.Token)
     await EMBDR.Client.login(EMBDR.Config.Token)
 
-    await Import("me.corebyte.EMBDR.Helper.DeployInteractions")()
-
-}
-
-Main()
+    await (await Import("me.corebyte.EMBDR.Helper.DeployInteractions"))()

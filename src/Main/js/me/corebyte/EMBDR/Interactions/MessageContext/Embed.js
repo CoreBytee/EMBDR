@@ -2,9 +2,9 @@ const DiscordJs = require("discord.js")
 const ContextMenuCommandBuilder = DiscordJs.ContextMenuCommandBuilder
 const ApplicationCommandType = DiscordJs.ApplicationCommandType
 
-const TryEmbed = Import("me.corebyte.EMBDR.Helper.TryEmbed")
+const TryEmbed = await Import("me.corebyte.EMBDR.Helper.TryEmbed")
 
-module.exports = {
+return {
     Type: "MessageContext",
     Name: "Embed Links",
 
