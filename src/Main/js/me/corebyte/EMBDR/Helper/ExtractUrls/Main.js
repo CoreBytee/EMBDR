@@ -1,7 +1,11 @@
 function IsUrl (Part) {
-    const Url = new URL(Part)
-    console.log(Url)
+    let Url
+    try {
+        Url = new URL(Part)        
+    } catch (error) { return false }
     const IsHttp = Url.protocol === "http:" || Url.protocol === "https:"
+    if (!IsHttp) { return false }
+    return Url
 }
 
 class UrlSentence {
@@ -9,16 +13,24 @@ class UrlSentence {
         this.Sentence = Sentence
         this.Parts = []
         
-        for (const Part of Sentence) {
-            
+        for (const Part of Sentence.split(" ")) {
+            console.log(Part)
+            this.Parts.push(
+                {
+                    Content: Part,
+                    Url: IsUrl(Part)
+                }
+            )
         }
+    }
+
+    GetParts() {
+        return this.Parts
     }
 }
 
 function ExtractUrls(Sentence) {
     return new UrlSentence(Sentence)
 }
-
-
 
 return ExtractUrls
