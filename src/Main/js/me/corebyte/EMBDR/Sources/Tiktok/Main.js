@@ -10,13 +10,17 @@ return {
 
     },
     Embed: async function(Url) {
-        const RequestData = await TiktokDL(Url.href, { version: "v3" })
-        const VideoData = RequestData.result
-        console.log(VideoData)
+        const [VideoRequest, MediaData] = await Promise.all(
+            [
+                TiktokDL(Url.href, { version: "v3" }),
+                GetMediaUrl(Url.href)
+            ]
+        )
+        const VideoData = VideoRequest.result
         return {
             Title: VideoData.desc,
             AuthorName: VideoData.author.nickname,
-            MediaUrl: VideoData.video2
+            MediaUrl: MediaData
         }
     }
 }
