@@ -1,60 +1,38 @@
 // const ListLinks = await Import("me.corebyte.EMBDR.Helper.ListLinks")
 // const MatchSource = await Import("me.corebyte.EMBDR.Helper.MatchSource")
 
-return function(Message, Interaction) {
-    const MessageContent = Message.content
-    const MessageLinks = ListLinks(MessageContent)
+const DiscordJs = require("discord.js")
 
-    if (MessageLinks.length == 0) {
-        if (Interaction) {
-            Interaction.reply(
+const ExtractUrls = await Import("me.corebyte.EMBDR.Helper.ExtractUrls")
+
+return async function(Options) {
+    const Content = Options.Content
+    const Channel = Options.Channel
+    const Message = Options.Message
+
+    const Urls = ExtractUrls(Content)
+    console.log(Urls)
+
+    const Parts = Urls.GetParts()
+    for (const Index in Parts) {
+        const Part = Parts[Index]
+        if (!Part.Url) { continue }
+
+        for (const EmbedSource of EMBDR.Sources) {
+            const Matches = EmbedSource.Match(Part.Url)
+            if (!Matches) { continue }
+            const EmbedData = await EmbedSource.Embed(Part.Url)
+            console.log(EmbedData)
+            const Embed = new DiscordJs.EmbedBuilder()
+            Embed.setTitle(EmbedData.Title)
+            Embed.setAuthor({name: EmbedData.AuthorName})
+            Embed.setImage(EmbedData.MediaUrl)
+            await Channel.send(
                 {
-                    content: "No links found in message. You dummy.",
-                    ephemeral: true,
-                    tts: true
+                    content: `[](${EmbedData.MediaUrl})`,
+                    // embeds: [Embed]
                 }
             )
         }
-        return
     }
-
-    const ProcessedLinks = []
-
-    for (const Link of MessageLinks) {
-        const SourceData = MatchSource(Link)
-
-        if (!SourceData) { continue }
-        if (SourceData.PreProcess) {
-            const PreProcessedLink = SourceData.PreProcess(Link)
-            if (PreProcessedLink) {
-                ProcessedLinks.push(PreProcessedLink)
-            }
-        }
-    }
-
-    const MissingCount = MessageLinks.length - ProcessedLinks.length
-    if (MissingCount > 0 && Interaction) {
-        Interaction.reply(
-            {
-                content: `Some links (${MissingCount}) did not have any connected extractors and will be missing.`,
-                ephemeral: true
-            }
-        )
-    }
-
-    const ExtractionMessages = []
-
-    for (const Link of ProcessedLinks) {
-        Message.channel.send(
-            {
-                embeds: [
-                    
-                ]
-            }
-        )
-    }
-
-
-
-    
 }
