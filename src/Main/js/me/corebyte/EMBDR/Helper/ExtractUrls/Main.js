@@ -14,7 +14,6 @@ class UrlSentence {
         this.Parts = []
         
         for (const Part of Sentence.split(" ")) {
-            console.log(Part)
             this.Parts.push(
                 {
                     Content: Part,

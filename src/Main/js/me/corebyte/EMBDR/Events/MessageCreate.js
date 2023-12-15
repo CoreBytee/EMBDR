@@ -5,7 +5,6 @@ EMBDR.DiscordJs.Client.on(
     "messageCreate",
     async (Message) => {
         if (Message.author.bot) { return }
-        console.log(Message)
 
         await TryEmbed(
             {

@@ -11,7 +11,6 @@ return async function(Options) {
     const Message = Options.Message
 
     const Urls = ExtractUrls(Content)
-    console.log(Urls)
 
     const Parts = Urls.GetParts()
     for (const Index in Parts) {
