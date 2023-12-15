@@ -18,7 +18,8 @@
         "npm+discord.js@14.12.1",
         "npm+fs-extra@11.1.1",
         "npm+get-video-id@3.6.5",
-        "npm+tobyg74/tiktok-api-dl@1.0.13"
+        "npm+tobyg74/tiktok-api-dl@1.0.13",
+        "npm+node-fetch@2.6.11"
     ],
     "Entrypoints": {
         "Main": "me.corebyte.EMBDR"
