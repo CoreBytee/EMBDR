@@ -38,17 +38,14 @@ return async function (Options) {
             const Matches = EmbedSource.Match(Part.Url)
             if (!Matches) { continue }
             const EmbedData = await EmbedSource.Embed(Part.Url)
-            console.log(EmbedData)
-            const Embed = new DiscordJs.EmbedBuilder()
-            Embed.setTitle(EmbedData.Title)
-            Embed.setAuthor({name: EmbedData.AuthorName})
-            Embed.setImage(EmbedData.MediaUrl)
-            await Channel.send(
-                {
-                    content: `[](${EmbedData.MediaUrl})`,
-                    // embeds: [Embed]
-                }
-            )
+            const MessageData = `[Embed for ${EmbedData.Title} by ${EmbedData.AuthorName}](${EmbedData.MediaUrl})`
+            if (Message) {
+                Message.reply(MessageData)
+            } else {
+                await Channel.send(
+                    MessageData
+                )
+            }
         }
     }
 }
