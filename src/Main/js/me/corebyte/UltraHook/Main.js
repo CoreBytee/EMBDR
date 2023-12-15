@@ -4,7 +4,7 @@ class UltraHook {
 
     static async ReplaceMessage(Message, Content) {
         await Message.delete()
-        await this.CloneUser(
+        return await this.CloneUser(
             Message.channel,
             Message.author,
             Content
@@ -12,7 +12,7 @@ class UltraHook {
     }
 
     static async CloneMessage(Message) {
-        await this.CloneUser(
+        return await this.CloneUser(
             Message.channel,
             Message.author,
             Message.content
@@ -20,7 +20,7 @@ class UltraHook {
     }
 
     static async CloneUser(Channel, User, Content) {
-        await this.Send(
+        return await this.Send(
             Channel,
             Content,
             User.globalName,
@@ -39,7 +39,7 @@ class UltraHook {
         Content.avatarURL = AvatarUrl
 
         const Webhook = await this.GetUltraHook(Channel)
-        await Webhook.send(Content)
+        return await Webhook.send(Content)
     }
 
     static async GetUltraHook(Channel) {
