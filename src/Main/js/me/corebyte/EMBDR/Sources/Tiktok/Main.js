@@ -1,5 +1,26 @@
 const GetVideoId = require('get-video-id')
 const TiktokDL = require("@tobyg74/tiktok-api-dl").TiktokDL
+const Fetch = require("node-fetch")
+
+const Replacements = [
+    "🤧",
+    "🤮",
+    "🤕",
+    "🤒",
+    "🤢",
+    "🥴",
+    "🤐",
+    "😮‍💨",
+    "😬",
+    "🙄",
+    "😯",
+    "🙈"
+]
+
+function RandomReplacement() {
+    return Replacements[Math.floor(Math.random() * Replacements.length)]
+}
+
 async function GetMediaUrl(Url) {
     const Response = await Fetch(
         "https://api.quickvids.win/v1/shorturl/create",
@@ -25,8 +46,13 @@ return {
     Match: function(Url) {
         return GetVideoId(Url.href).service == "tiktok"
     },
-    ReplaceMessage: async function(Message, Parts) {
-
+    ReplaceParts: async function(Parts) {
+        for (const Part of Parts) {
+            if (!Part.Url) { continue }
+            const Service = GetVideoId(Part.Url.href).service
+            if (Service != "tiktok") { continue }
+            Part.Replace = RandomReplacement()
+        }
     },
     Embed: async function(Url) {
         const [VideoRequest, MediaData] = await Promise.all(
