@@ -1,0 +1,19 @@
+{
+	"name": "embdr",
+	"module": "src/index.ts",
+	"type": "module",
+	"devDependencies": {
+		"@biomejs/biome": "1.9.4",
+		"@types/bun": "latest"
+	},
+	"peerDependencies": {
+		"typescript": "^5"
+	},
+	"dependencies": {
+		"@kitajs/html": "^4.2.8",
+		"@kitajs/ts-html-plugin": "^4.1.1",
+		"discord.js": "^14.19.3",
+		"get-urls": "^12.1.0"
+	},
+	"trustedDependencies": ["@biomejs/biome"]
+}

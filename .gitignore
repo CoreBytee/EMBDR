@@ -1,6 +1,12 @@
+# Bun
 node_modules
-Binaries
-package-lock.json
-package.json
-Config.json
-EMBDR.twr
+
+# YTDLP
+yt-dlp
+yt-dlp.exe
+
+# Cache
+cache.db
+
+# env
+.env
