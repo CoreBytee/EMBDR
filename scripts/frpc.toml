@@ -1,0 +1,10 @@
+serverAddr = "{{ .Envs.FRP_SERVER_ADDRESS }}"
+serverPort = 7000
+auth.token = "{{ .Envs.FRP_TOKEN }}"
+
+[[proxies]]
+name = "EMBDR Test"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = {{ .Envs.WEBSERVER_PORT }}
+remotePort = {{ .Envs.FRP_REMOTE_PORT }}

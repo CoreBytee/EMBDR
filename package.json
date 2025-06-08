@@ -1,19 +1,24 @@
 {
-	"name": "embdr",
-	"module": "src/index.ts",
-	"type": "module",
-	"devDependencies": {
-		"@biomejs/biome": "1.9.4",
-		"@types/bun": "latest"
-	},
-	"peerDependencies": {
-		"typescript": "^5"
-	},
-	"dependencies": {
-		"@kitajs/html": "^4.2.8",
-		"@kitajs/ts-html-plugin": "^4.1.1",
-		"discord.js": "^14.19.3",
-		"get-urls": "^12.1.0"
-	},
-	"trustedDependencies": ["@biomejs/biome"]
+  "name": "embdr",
+  "module": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch .",
+    "frp": "bun run --env-file .env frpc -c ./scripts/frpc.toml"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@corebyte/frp": "^1.0.4",
+    "@kitajs/html": "^4.2.8",
+    "@kitajs/ts-html-plugin": "^4.1.1",
+    "discord.js": "^14.19.3",
+    "get-urls": "^12.1.0"
+  },
+  "trustedDependencies": ["@biomejs/biome", "@corebyte/frp"]
 }
