@@ -1,0 +1,73 @@
+{
+	"_comment": "DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PTERODACTYL PANEL - PTERODACTYL.IO",
+	"meta": {
+		"version": "PTDL_v2",
+		"update_url": null
+	},
+	"exported_at": "2025-06-02T12:54:39+02:00",
+	"name": "EMBDR",
+	"author": "mratox@protonmail.com",
+	"description": "Bun is an incredibly fast JavaScript runtime, transpiler bundler, and npm package manager all-in-one.",
+	"features": null,
+	"docker_images": {
+		"Bun Canary": "ghcr.io/parkervcp/yolks:bun_canary",
+		"Bun Latest": "ghcr.io/parkervcp/yolks:bun_latest"
+	},
+	"file_denylist": [],
+	"startup": "chmod +x ./.pterodactyl/start.sh; ./.pterodactyl/start.sh",
+	"config": {
+		"files": "{}",
+		"startup": "{\r\n    \"done\": [\r\n        \"\"\r\n    ]\r\n}",
+		"logs": "{}",
+		"stop": "^^C"
+	},
+	"scripts": {
+		"installation": {
+			"script": "#!/bin/bash\r\n\r\n# GIT_REPOSITORY string with the value [user]/[repo]\r\n# GIT_BRANCH string with the branchname\r\n# GIT_ACCESS_TOKEN string with the github public access token\r\n\r\n# Update package list and install necessary packages\r\napt update\r\napt install -y git curl jq file unzip make gcc g++ python python-dev libtool\r\n\r\n# Create directory and navigate to it\r\nmkdir -p /mnt/server\r\ncd /mnt/server\r\n\r\n# Configure the safe directory\r\ngit config --global --add safe.directory /mnt/server\r\n\r\n# Check if there is already a git repository\r\nif [ -d \".git\" ]; then\r\n  echo \"Git repository found. Switching branch...\"\r\n  git fetch\r\n  git checkout $GIT_BRANCH\r\nelse\r\n  echo \"No git repository found. Cloning repository...\"\r\n  git clone https://$GIT_ACCESS_TOKEN@github.com/$GIT_REPOSITORY.git .\r\n  git checkout $GIT_BRANCH\r\nfi\r\n\r\n## install end\r\necho \"-----------------------------------------\"\r\necho \"Installation completed...\"\r\necho \"-----------------------------------------\"",
+			"container": "ghcr.io/parkervcp/installers:debian",
+			"entrypoint": "bash"
+		}
+	},
+	"variables": [
+		{
+			"name": "GIT Repository",
+			"description": "",
+			"env_variable": "GIT_REPOSITORY",
+			"default_value": "CoreBytee/EMBDR",
+			"user_viewable": true,
+			"user_editable": true,
+			"rules": "required|string",
+			"field_type": "text"
+		},
+		{
+			"name": "GIT Branch",
+			"description": "",
+			"env_variable": "GIT_BRANCH",
+			"default_value": "main",
+			"user_viewable": true,
+			"user_editable": true,
+			"rules": "required|string",
+			"field_type": "text"
+		},
+		{
+			"name": "GIT Access Token",
+			"description": "",
+			"env_variable": "GIT_ACCESS_TOKEN",
+			"default_value": "",
+			"user_viewable": true,
+			"user_editable": true,
+			"rules": "required|string",
+			"field_type": "text"
+		},
+		{
+			"name": "GIT Enabled",
+			"description": "",
+			"env_variable": "GIT_ENABLED",
+			"default_value": "true",
+			"user_viewable": true,
+			"user_editable": true,
+			"rules": "required|boolean",
+			"field_type": "text"
+		}
+	]
+}
