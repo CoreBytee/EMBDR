@@ -21,7 +21,9 @@ export async function extractId(url: URL) {
 
 export async function extractMeta(id: string) {
 	const url = `https://instagram.com/p/${id}`;
+	console.log(`Fetching Instagram post metadata for ${url}`);
 	const data = await instagramGetUrl(url);
+	console.log(`Fetched Instagram post metadata for ${url}`);
 
 	return {
 		id: id,
