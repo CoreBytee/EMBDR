@@ -45,7 +45,6 @@ Bun.serve({
 					title: meta.title,
 					url: meta.url,
 					video: `${WEBSERVER_URL}/v/ig/${id}`,
-					thumbnail: `${WEBSERVER_URL}/t/ig/${id}`,
 				}) as string,
 				{
 					headers: {
@@ -53,10 +52,6 @@ Bun.serve({
 					},
 				},
 			);
-		},
-		"/t/ig/:id": async (request, response) => {
-			const meta = await instagramSource.extractMeta(request.params.id);
-			return Response.redirect(meta.thumbnailUrL, 302);
 		},
 		"/v/ig/:id": async (request, response) => {
 			const meta = await instagramSource.extractMeta(request.params.id);

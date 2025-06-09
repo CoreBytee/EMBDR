@@ -2,12 +2,10 @@ export default function VideoGraph({
 	title,
 	url,
 	video,
-	thumbnail,
 }: {
 	title: string;
 	url: string;
 	video: string;
-	thumbnail: string;
 }) {
 	return (
 		<html lang="en">
