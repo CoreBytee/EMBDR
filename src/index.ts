@@ -1,9 +1,10 @@
 import { Client } from "discord.js";
 import getUrls from "get-urls";
 import { DISCORD_TOKEN, WEBSERVER_PORT, WEBSERVER_URL } from "./env";
-import InstagramGraph from "./graphs/instagram";
+import VideoGraph from "./graphs/video";
+import * as instagramSource from "./sources/instagram";
 
-const sources = [await import("./sources/instagram")];
+const sources = [instagramSource];
 
 const discord = new Client({ intents: [53608447] });
 await discord.login(DISCORD_TOKEN);
@@ -36,16 +37,15 @@ console.log("Starting webserver at", WEBSERVER_URL, "on port", WEBSERVER_PORT);
 Bun.serve({
 	port: WEBSERVER_PORT,
 	routes: {
-		"/e/ig/:id": async (req, res) => {
-			const id = req.params.id;
-			const meta = await sources[0]!.extractMeta(
-				new URL(`https://www.instagram.com/reel/${id}`),
-			);
+		"/e/ig/:id": async (request, response) => {
+			const id = request.params.id;
+			const meta = await instagramSource.extractMeta(id);
 			return new Response(
-				InstagramGraph({
-					id,
+				VideoGraph({
 					title: meta.title,
-					originalUrl: meta.url,
+					url: meta.url,
+					video: `${WEBSERVER_URL}/v/ig/${id}`,
+					thumbnail: `${WEBSERVER_URL}/t/ig/${id}`,
 				}) as string,
 				{
 					headers: {
@@ -53,6 +53,14 @@ Bun.serve({
 					},
 				},
 			);
+		},
+		"/t/ig/:id": async (request, response) => {
+			const meta = await instagramSource.extractMeta(request.params.id);
+			return Response.redirect(meta.thumbnailUrL, 302);
+		},
+		"/v/ig/:id": async (request, response) => {
+			const meta = await instagramSource.extractMeta(request.params.id);
+			return Response.redirect(meta.videoUrl, 302);
 		},
 	},
 });

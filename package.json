@@ -18,7 +18,8 @@
     "@kitajs/html": "^4.2.8",
     "@kitajs/ts-html-plugin": "^4.1.1",
     "discord.js": "^14.19.3",
-    "get-urls": "^12.1.0"
+    "get-urls": "^12.1.0",
+    "instagram-url-direct": "^2.0.7"
   },
   "trustedDependencies": ["@biomejs/biome", "@corebyte/frp"]
 }

@@ -1,5 +1,6 @@
 import type { Message } from "discord.js";
 import { WEBSERVER_URL } from "../env";
+import { instagramGetUrl } from "instagram-url-direct";
 
 export const name = "Instagram";
 export const short = "ig";
@@ -18,22 +19,21 @@ export async function extractId(url: URL) {
 	return id;
 }
 
-export async function extractMeta(url: URL) {
-	const result = Bun.spawnSync({
-		cmd: ["./yt-dlp", "-f", "b", "-J", "-q", url.toString()],
-	});
-
-	const data = JSON.parse(result.stdout.toString());
-	console.log(data);
+export async function extractMeta(id: string) {
+	const url = `https://instagram.com/p/${id}`;
+	const data = await instagramGetUrl(url);
 
 	return {
-		title: data.title,
-		url: data.url,
+		id: id,
+		title: `Post by @${data.post_info.owner_username}`,
+		url: `https://www.instagram.com/p/${id}`,
+		thumbnailUrL: data.media_details[0]!.thumbnail!,
+		videoUrl: data.media_details[0]!.url,
 	};
 }
 
 export async function reply(url: URL, message: Message) {
-	url.hostname = "ddinstagram.com";
+	url.hostname = "instagram.com";
 	url.search = "";
 
 	const id = await extractId(url);
@@ -44,5 +44,3 @@ export async function reply(url: URL, message: Message) {
 		allowedMentions: { repliedUser: false, users: [], roles: [] },
 	});
 }
-
-// ytdlp.exe -o "download/%(title)s.%(ext)s" "https://www.instagram.com/reel/DGNnglOz0i2/?igsh=azR2YzljenRsaXU2" -f b -J -q -v
