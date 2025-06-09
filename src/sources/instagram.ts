@@ -1,6 +1,6 @@
 import type { Message } from "discord.js";
-import { WEBSERVER_URL } from "../env";
 import { instagramGetUrl } from "instagram-url-direct";
+import { WEBSERVER_URL } from "../env";
 
 export const name = "Instagram";
 export const short = "ig";
