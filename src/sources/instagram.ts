@@ -2,8 +2,23 @@ import type { Message } from "discord.js";
 import { WEBSERVER_URL } from "../env";
 import useProxy from "../util/useProxy";
 import { instagramGetUrl } from "../util/instagramGetUrl";
+import random from "just-random";
 
 const fetchProxy = await useProxy();
+
+const messages = [
+	"Beep beep, your embed is ready!",
+	"Embed? Op je muil gauw!",
+	"Here's your spicy Instagram drop!",
+	"Fresh from the 'Gram, just for you!",
+	"Look what I found on Insta!",
+	"Your daily dose of Instagram, served hot!",
+	"Instagram magic, coming right up!",
+	"Another banger from the 'Gram!",
+	"Sliding into your DMs with this embed!",
+	"Insta-nt delivery, enjoy your post!",
+	"Want to see dead people? Check this out!",
+];
 
 export const name = "Instagram";
 export const short = "ig";
@@ -44,9 +59,10 @@ export async function reply(url: URL, message: Message) {
 	url.search = "";
 
 	const id = await extractId(url);
+	const funny = random(messages);
 
 	message.reply({
-		content: `${WEBSERVER_URL}/e/ig/${id}`,
+		content: `[${funny}](${WEBSERVER_URL}/e/ig/${id})`,
 		embeds: [],
 		allowedMentions: { repliedUser: false, users: [], roles: [] },
 	});

@@ -5,11 +5,12 @@
       "name": "embdr",
       "dependencies": {
         "@corebyte/frp": "^1.0.4",
-        "@corebyte/proxy": "^1.5.0",
+        "@corebyte/proxy": "^1.5.1",
         "@kitajs/html": "^4.2.9",
         "@kitajs/ts-html-plugin": "^4.1.1",
         "discord.js": "^14.19.3",
         "get-urls": "^12.1.0",
+        "just-random": "^3.2.0",
         "qs": "^6.14.0",
       },
       "devDependencies": {
@@ -148,6 +149,8 @@
     "is-fullwidth-code-point": ["is-fullwidth-code-point@3.0.0", "", {}, "sha512-zymm5+u+sCsSWyD9qNaejV3DFvhCKclKdizYaJUuHA83RLjb7nSuGnddCHGv0hk+KY7BMAlsWeK4Ueg6EV6XQg=="],
 
     "is-regexp": ["is-regexp@3.1.0", "", {}, "sha512-rbku49cWloU5bSMI+zaRaXdQHXnthP6DZ/vLnfdSKyL4zUzuWnomtOEiZZOd+ioQ+avFo/qau3KPTc7Fjy1uPA=="],
+
+    "just-random": ["just-random@3.2.0", "", {}, "sha512-RMf8vbtCfLIbAEHvIPu2FwMkpB/JudGyk/VPfqPItcRgt7k8QnV+Aa7s7kRFPo+bavQkUi8Yg1x/ooW6Ttyb9A=="],
 
     "lodash": ["lodash@4.17.21", "", {}, "sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg=="],
 
