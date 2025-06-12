@@ -1,6 +1,9 @@
 import type { Message } from "discord.js";
-import { instagramGetUrl } from "instagram-url-direct";
 import { WEBSERVER_URL } from "../env";
+import useProxy from "../util/useProxy";
+import { instagramGetUrl } from "../util/instagramGetUrl";
+
+const fetchProxy = await useProxy();
 
 export const name = "Instagram";
 export const short = "ig";
@@ -22,7 +25,9 @@ export async function extractId(url: URL) {
 export async function extractMeta(id: string) {
 	const url = `https://instagram.com/p/${id}`;
 	console.log(`Fetching Instagram post metadata for ${url}`);
-	const data = await instagramGetUrl(url);
+	const data = await instagramGetUrl(url, {
+		fetchFn: fetchProxy as typeof fetch,
+	});
 	console.log(`Fetched Instagram post metadata for ${url}`);
 
 	return {

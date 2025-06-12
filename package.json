@@ -9,18 +9,20 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "1.9.4",
-		"@types/bun": "latest"
+		"@types/bun": "latest",
+		"@types/qs": "^6.14.0"
 	},
 	"peerDependencies": {
-		"typescript": "^5"
+		"typescript": "^5.8.3"
 	},
 	"dependencies": {
 		"@corebyte/frp": "^1.0.4",
-		"@kitajs/html": "^4.2.8",
+		"@corebyte/proxy": "^1.5.1",
+		"@kitajs/html": "^4.2.9",
 		"@kitajs/ts-html-plugin": "^4.1.1",
 		"discord.js": "^14.19.3",
 		"get-urls": "^12.1.0",
-		"instagram-url-direct": "^2.0.7"
+		"qs": "^6.14.0"
 	},
 	"trustedDependencies": ["@biomejs/biome", "@corebyte/frp"]
 }
