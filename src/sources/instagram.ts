@@ -3,6 +3,7 @@ import { WEBSERVER_URL } from "../env";
 import useProxy from "../util/useProxy";
 import { instagramGetUrl } from "../util/instagramGetUrl";
 import random from "just-random";
+import database from "../database";
 
 const fetchProxy = await useProxy();
 
@@ -38,20 +39,47 @@ export async function extractId(url: URL) {
 }
 
 export async function extractMeta(id: string) {
+	console.log(`Fetching Instagram post metadata for ${id}`);
+
+	// Try to get from cache
+	const cached = database
+		.query(
+			"SELECT id, title, author, video_url FROM instagram_reels WHERE id = ?",
+		)
+		.get(id) as
+		| { id: string; title: string; author: string; video_url: string }
+		| undefined;
+	if (cached) {
+		console.log(`Found Instagram post metadata for ${id} in cache`);
+
+		return {
+			id: cached.id,
+			title: cached.title,
+			url: `https://www.instagram.com/p/${cached.id}`,
+			videoUrl: cached.video_url,
+		};
+	}
+
+	// Not in cache, fetch and cache
 	const url = `https://instagram.com/p/${id}`;
-	console.log(`Fetching Instagram post metadata for ${url}`);
 	const data = await instagramGetUrl(url, {
 		fetchFn: fetchProxy as typeof fetch,
 	});
-	console.log(`Fetched Instagram post metadata for ${url}`);
+	console.log(`Fetched Instagram post metadata for ${id}`);
 
-	return {
+	const meta = {
 		id: id,
 		title: `Post by @${data.post_info.owner_username}`,
 		url: `https://www.instagram.com/p/${id}`,
-		thumbnailUrL: data.media_details[0]!.thumbnail!,
 		videoUrl: data.media_details[0]!.url,
 	};
+
+	database.run(
+		"INSERT OR REPLACE INTO instagram_reels (id, title, author, video_url) VALUES (?, ?, ?, ?)",
+		[id, meta.title, data.post_info.owner_username, meta.videoUrl],
+	);
+
+	return meta;
 }
 
 export async function reply(url: URL, message: Message) {
