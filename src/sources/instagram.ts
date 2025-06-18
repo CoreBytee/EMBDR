@@ -1,4 +1,4 @@
-import type { Message } from "discord.js";
+import { MessageFlags, type Message } from "discord.js";
 import { WEBSERVER_URL } from "../env";
 import useProxy from "../util/useProxy";
 import { instagramGetUrl } from "../util/instagramGetUrl";
@@ -92,6 +92,7 @@ export async function reply(url: URL, message: Message) {
 	message.reply({
 		content: `[${funny}](${WEBSERVER_URL}/e/ig/${id})`,
 		embeds: [],
+		flags: [MessageFlags.SuppressNotifications],
 		allowedMentions: { repliedUser: false, users: [], roles: [] },
 	});
 }
