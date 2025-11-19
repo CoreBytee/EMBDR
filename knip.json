@@ -1,0 +1,7 @@
+{
+	"$schema": "./node_modules/knip/schema-jsonc.json",
+	"ignoreDependencies": ["@corebyte/frp"],
+	"rules": {
+		"exports": "off"
+	}
+}
