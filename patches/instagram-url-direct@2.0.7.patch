@@ -1,0 +1,45 @@
+diff --git a/node_modules/instagram-url-direct/.bun-tag-9a4e2f618e2d123f b/.bun-tag-9a4e2f618e2d123f
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/dist/instagram.js b/dist/instagram.js
+index 6bb6eaa84127ebdebd1933d4bc5bcf50fa6bdda5..5a043586cc12b6ba681a9bac093d717d81817d2c 100644
+--- a/dist/instagram.js
++++ b/dist/instagram.js
+@@ -4,15 +4,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
+ };
+ Object.defineProperty(exports, "__esModule", { value: true });
+ exports.instagramGetUrl = instagramGetUrl;
++exports.instagramGetId = getShortcode;
++exports.instagramGetRedirect = checkRedirect;
+ const axios_1 = __importDefault(require("axios"));
+ const qs_1 = __importDefault(require("qs"));
+ //Main function
+-async function instagramGetUrl(url_media, config = { retries: 5, delay: 1000 }) {
++async function instagramGetUrl(id_media, config = { retries: 5, delay: 1000 }) {
+     return new Promise(async (resolve, reject) => {
+         try {
+-            url_media = await checkRedirect(url_media);
+-            const SHORTCODE = getShortcode(url_media);
+-            const INSTAGRAM_REQUEST = await instagramRequest(SHORTCODE, config.retries, config.delay);
++            const INSTAGRAM_REQUEST = await instagramRequest(id_media, config.retries, config.delay);
+             const OUTPUT_DATA = createOutputData(INSTAGRAM_REQUEST);
+             resolve(OUTPUT_DATA);
+         }
+diff --git a/dist/types/instagram.d.ts b/dist/types/instagram.d.ts
+index a132503ece1623a404c3613f2340eb44a5993cb1..531c64339a384626080727ed425053a4e3464b80 100644
+--- a/dist/types/instagram.d.ts
++++ b/dist/types/instagram.d.ts
+@@ -24,7 +24,12 @@ export interface InstagramResponse {
+ export interface InstagramError {
+     error: string;
+ }
+-export declare function instagramGetUrl(url_media: string, config?: {
++
++export declare function instagramGetUrl(id_media: string, config?: {
+     retries: number;
+     delay: number;
+ }): Promise<InstagramResponse>;
++
++export declare function instagramGetId(url_media:string): Promise<string>;
++
++export declare function instagramGetRedirect(url_media:string): Promise<string>;
