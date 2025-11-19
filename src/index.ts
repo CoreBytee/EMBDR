@@ -37,7 +37,7 @@ console.log("Starting webserver at", WEBSERVER_URL, "on port", WEBSERVER_PORT);
 Bun.serve({
 	port: WEBSERVER_PORT,
 	routes: {
-		"/e/ig/:id": async (request, response) => {
+		"/e/ig/:id": async (request) => {
 			const id = request.params.id;
 			const meta = await instagramSource.extractMeta(id);
 			return new Response(
@@ -53,9 +53,11 @@ Bun.serve({
 				},
 			);
 		},
-		"/v/ig/:id": async (request, response) => {
+		"/v/ig/:id": async (request) => {
+			console.log(request);
 			const meta = await instagramSource.extractMeta(request.params.id);
-			return Response.redirect(meta.videoUrl, 302);
+			const response = await fetch(meta.videoUrl);
+			return response;
 		},
 	},
 });
