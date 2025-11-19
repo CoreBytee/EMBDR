@@ -1,12 +1,8 @@
-# Bun
-node_modules
+# Secrets
+/.env
 
-# YTDLP
-yt-dlp
-yt-dlp.exe
+# Bun
+/node_modules
 
 # Cache
-cache.db
-
-# env
-.env
+/cache
