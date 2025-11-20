@@ -54,11 +54,7 @@ export default class WebServer {
 						);
 
 					const index = parseInt(mediaIndex, 10);
-					if (
-						Number.isNaN(index) ||
-						index < 0 ||
-						index >= media.media.length
-					)
+					if (Number.isNaN(index) || index < 0 || index >= media.media.length)
 						return new Response(
 							`The media index "${mediaIndex}" is invalid for media "${mediaId}" on source "${sourceId}".`,
 							{ status: 404 },

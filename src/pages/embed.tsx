@@ -22,14 +22,8 @@ export default function Embed(data: MediaInformation) {
 				<meta property="og:description" content={data.description} />
 
 				{/*Site name*/}
-				<meta
-					property="og:site_name"
-					content={env.WEBSERVER_URL as string}
-				/>
-				<meta
-					property="twitter:site"
-					content={env.WEBSERVER_URL as string}
-				/>
+				<meta property="og:site_name" content={env.WEBSERVER_URL as string} />
+				<meta property="twitter:site" content={env.WEBSERVER_URL as string} />
 
 				{/*URL*/}
 				<meta property="og:url" content={data.url} />
@@ -43,10 +37,7 @@ export default function Embed(data: MediaInformation) {
 							return (
 								<>
 									{/*Video*/}
-									<meta
-										property="og:video"
-										content={media.url}
-									/>
+									<meta property="og:video" content={media.url} />
 									<meta
 										property="twitter:player"
 										content={`/m/${data.source}/${data.id}/${index}`}

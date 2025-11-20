@@ -1,8 +1,8 @@
 import { env } from "bun";
 import { Client, MessageFlags } from "discord.js";
-import type BaseSource from "./sources/BaseSource";
 import getUrls from "get-urls";
 import random from "just-random";
+import type BaseSource from "./sources/BaseSource";
 
 export default class DiscordBot {
 	client: Client<boolean>;
@@ -31,9 +31,7 @@ export default class DiscordBot {
 					const id = await source.extractId(url);
 					if (!id) continue;
 
-					console.info(
-						`[discord] embedding ${id} from ${source.name}`,
-					);
+					console.info(`[discord] embedding ${id} from ${source.name}`);
 					const response = random(source.messages);
 					message.suppressEmbeds(true);
 					message.reply({
