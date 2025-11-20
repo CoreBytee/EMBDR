@@ -59,10 +59,7 @@ export default class InstagramSource extends BaseSource {
 		}
 
 		const data = await this.requestPost(id);
-		if (!data) {
-			console.info(`[instagram] post ${id} does not exist`);
-			return null;
-		}
+		if (!data) return null;
 
 		cache
 			.prepare(
@@ -103,7 +100,8 @@ export default class InstagramSource extends BaseSource {
 					dimensions: media.dimensions,
 				})),
 			};
-		} catch {
+		} catch (e) {
+			console.info(`[instagram] requesting post ${id} failed: ${e}`);
 			return null;
 		}
 	}
