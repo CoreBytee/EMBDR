@@ -45,7 +45,8 @@ export default class InstagramSource extends BaseSource {
 	async extractId(url: URL) {
 		try {
 			const redirected = await instagramGetRedirect(url.toString());
-			return await instagramGetId(redirected);
+			const id = await instagramGetId(redirected);
+			return id.split("?")[0]!;
 		} catch {
 			return null;
 		}
