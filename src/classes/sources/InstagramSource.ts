@@ -1,11 +1,16 @@
 import { Database } from "bun:sqlite";
+import { env } from "bun";
 import { ensureDirSync } from "fs-extra";
 import {
 	instagramGetId,
 	instagramGetRedirect,
 	instagramGetUrl,
 } from "instagram-url-direct";
+import buildAxiosProxy from "../../utility/build-axios-proxy";
 import BaseSource, { type MediaInformation } from "./BaseSource";
+
+const PROXY_URL = env.PROXY_URL || undefined;
+const PROXY_SETTINGS = buildAxiosProxy(PROXY_URL);
 
 ensureDirSync("./cache");
 const cache = new Database("./cache/instagram.db");
@@ -44,7 +49,10 @@ export default class InstagramSource extends BaseSource {
 
 	async extractId(url: URL) {
 		try {
-			const redirected = await instagramGetRedirect(url.toString());
+			const redirected = await instagramGetRedirect(
+				url.toString(),
+				PROXY_SETTINGS,
+			);
 			const id = await instagramGetId(redirected);
 			return id.split("?")[0]!;
 		} catch {
@@ -87,7 +95,11 @@ export default class InstagramSource extends BaseSource {
 
 	private async requestPost(id: string): Promise<MediaInformation | null> {
 		try {
-			const data = await instagramGetUrl(id);
+			const data = await instagramGetUrl(id, {
+				retries: 5,
+				delay: 1000,
+				proxy: PROXY_SETTINGS,
+			});
 			return {
 				id: id,
 				source: this.short,

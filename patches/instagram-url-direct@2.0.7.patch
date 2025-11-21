@@ -1,8 +1,11 @@
 diff --git a/node_modules/instagram-url-direct/.bun-tag-9a4e2f618e2d123f b/.bun-tag-9a4e2f618e2d123f
 new file mode 100644
 index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/instagram-url-direct/.bun-tag-abc8af6f70ef373c b/.bun-tag-abc8af6f70ef373c
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
 diff --git a/dist/instagram.js b/dist/instagram.js
-index 6bb6eaa84127ebdebd1933d4bc5bcf50fa6bdda5..5a043586cc12b6ba681a9bac093d717d81817d2c 100644
+index 6bb6eaa84127ebdebd1933d4bc5bcf50fa6bdda5..ba60160eb0cf367479c0e3d6403ac51dcdaf91b5 100644
 --- a/dist/instagram.js
 +++ b/dist/instagram.js
 @@ -4,15 +4,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
@@ -21,15 +24,74 @@ index 6bb6eaa84127ebdebd1933d4bc5bcf50fa6bdda5..5a043586cc12b6ba681a9bac093d717d
 -            url_media = await checkRedirect(url_media);
 -            const SHORTCODE = getShortcode(url_media);
 -            const INSTAGRAM_REQUEST = await instagramRequest(SHORTCODE, config.retries, config.delay);
-+            const INSTAGRAM_REQUEST = await instagramRequest(id_media, config.retries, config.delay);
++            const INSTAGRAM_REQUEST = await instagramRequest(id_media, config.retries, config.delay, config.proxy);
              const OUTPUT_DATA = createOutputData(INSTAGRAM_REQUEST);
              resolve(OUTPUT_DATA);
          }
+@@ -22,10 +22,10 @@ async function instagramGetUrl(url_media, config = { retries: 5, delay: 1000 })
+     });
+ }
+ //Utilities
+-async function checkRedirect(url) {
++async function checkRedirect(url, proxy) {
+     let split_url = url.split("/");
+     if (split_url.includes("share")) {
+-        let res = await axios_1.default.get(url);
++        let res = await axios_1.default.get(url, {proxy});
+         return res.request.path;
+     }
+     return url;
+@@ -83,11 +83,12 @@ function getShortcode(url) {
+         throw new Error(`Failed to obtain shortcode: ${err.message}`);
+     }
+ }
+-async function getCSRFToken() {
++async function getCSRFToken(proxy) {
+     try {
+         let config = {
+             method: 'GET',
+             url: 'https://www.instagram.com/',
++            proxy,
+         };
+         const token = await new Promise((resolve, reject) => {
+             axios_1.default.request(config).then((response) => {
+@@ -117,7 +118,7 @@ function isSidecar(requestData) {
+         throw new Error(`Failed sidecar verification: ${err.message}`);
+     }
+ }
+-async function instagramRequest(shortcode, retries, delay) {
++async function instagramRequest(shortcode, retries, delay, proxy) {
+     var _a;
+     try {
+         const BASE_URL = "https://www.instagram.com/graphql/query";
+@@ -131,7 +132,7 @@ async function instagramRequest(shortcode, retries, delay) {
+             }),
+             'doc_id': INSTAGRAM_DOCUMENT_ID
+         });
+-        const token = await getCSRFToken();
++        const token = await getCSRFToken(proxy);
+         let config = {
+             method: 'post',
+             maxBodyLength: Infinity,
+@@ -140,6 +141,7 @@ async function instagramRequest(shortcode, retries, delay) {
+                 'X-CSRFToken': token,
+                 'Content-Type': 'application/x-www-form-urlencoded',
+             },
++            proxy,
+             data: dataBody
+         };
+         const { data } = await axios_1.default.request(config);
 diff --git a/dist/types/instagram.d.ts b/dist/types/instagram.d.ts
-index a132503ece1623a404c3613f2340eb44a5993cb1..531c64339a384626080727ed425053a4e3464b80 100644
+index a132503ece1623a404c3613f2340eb44a5993cb1..88ca1316f085d945257bf41e8bcf5558895ddfa2 100644
 --- a/dist/types/instagram.d.ts
 +++ b/dist/types/instagram.d.ts
-@@ -24,7 +24,12 @@ export interface InstagramResponse {
+@@ -1,3 +1,5 @@
++import { AxiosProxyConfig } from 'axios';
++
+ export interface InstagramResponse {
+     results_number: number;
+     url_list: string[];
+@@ -24,7 +26,13 @@ export interface InstagramResponse {
  export interface InstagramError {
      error: string;
  }
@@ -38,8 +100,9 @@ index a132503ece1623a404c3613f2340eb44a5993cb1..531c64339a384626080727ed425053a4
 +export declare function instagramGetUrl(id_media: string, config?: {
      retries: number;
      delay: number;
++	proxy?: AxiosProxyConfig;
  }): Promise<InstagramResponse>;
 +
 +export declare function instagramGetId(url_media:string): Promise<string>;
 +
-+export declare function instagramGetRedirect(url_media:string): Promise<string>;
++export declare function instagramGetRedirect(url_media:string, proxy?: AxiosProxyConfig): Promise<string>;
