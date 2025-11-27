@@ -6,11 +6,9 @@ import {
 	instagramGetRedirect,
 	instagramGetUrl,
 } from "instagram-url-direct";
-import buildAxiosProxy from "../../utility/build-axios-proxy";
 import BaseSource, { type MediaInformation } from "./BaseSource";
 
 const PROXY_URL = env.PROXY_URL || undefined;
-const PROXY_SETTINGS = buildAxiosProxy(PROXY_URL);
 
 ensureDirSync("./cache");
 const cache = new Database("./cache/instagram.db");
@@ -49,10 +47,7 @@ export default class InstagramSource extends BaseSource {
 
 	async extractId(url: URL) {
 		try {
-			const redirected = await instagramGetRedirect(
-				url.toString(),
-				PROXY_SETTINGS,
-			);
+			const redirected = await instagramGetRedirect(url.toString(), PROXY_URL);
 			const id = await instagramGetId(redirected);
 			return id.split("?")[0]!;
 		} catch {
@@ -98,7 +93,7 @@ export default class InstagramSource extends BaseSource {
 			const data = await instagramGetUrl(id, {
 				retries: 5,
 				delay: 1000,
-				proxy: PROXY_SETTINGS,
+				proxy: PROXY_URL,
 			});
 			return {
 				id: id,
