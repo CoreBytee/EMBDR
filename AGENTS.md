@@ -1,0 +1,1 @@
+- No abbreviations in variable, function or other names.

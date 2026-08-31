@@ -1,8 +1,5 @@
 # Secrets
 /.env
 
-# Bun
-/node_modules
-
-# Cache
-/cache
+# Cargo
+/target

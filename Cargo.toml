@@ -1,0 +1,10 @@
+[workspace]
+resolver = "3"
+members = [
+    "packages/embdr",
+    "packages/instagram-client",
+]
+default-members = ["packages/embdr"]
+
+[workspace.dependencies]
+instagram-client = { path = "packages/instagram-client" }
