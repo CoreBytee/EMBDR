@@ -150,6 +150,11 @@ impl EMBDR {
                             .build()
                             .into(),
                     );
+
+                    tracing::error!(
+                        error = ?media_data_result.unwrap_err(),
+                        "Failed to extract media from the provided link"
+                    );
                 }
 
                 let result = http

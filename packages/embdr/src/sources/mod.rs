@@ -1,8 +1,10 @@
 use url::Url;
 
 use crate::sources::instagram::InstagramSource;
+use crate::sources::reddit::RedditSource;
 
 mod instagram;
+mod reddit;
 
 #[async_trait::async_trait]
 pub trait Source {
@@ -29,7 +31,10 @@ pub trait Source {
 }
 
 pub fn get_sources() -> Sources {
-    vec![Box::new(InstagramSource::new())]
+    vec![
+        Box::new(InstagramSource::new()),
+        Box::new(RedditSource::new()),
+    ]
 }
 
 pub type Sources = Vec<Box<dyn Source + Send + Sync>>;

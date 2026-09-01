@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 instagram-client.workspace = true
+reddit-client.workspace = true
 
 # Environment
 dotenvy = "0.15.7"
