@@ -4,6 +4,7 @@ use crate::sources::instagram::InstagramSource;
 
 mod instagram;
 
+#[allow(dead_code)]
 #[async_trait::async_trait]
 pub trait Source {
     /// Returns the name of the source.
