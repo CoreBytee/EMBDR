@@ -22,15 +22,16 @@ EMBDR is organised as a Cargo workspace with two packages:
 ## Installation
 
 1. **Clone the repository:**
-   ```sh
-   git clone https://github.com/CoreBytee/EMBDR.git
-   cd EMBDR
-   ```
+
+    ```sh
+    git clone https://github.com/CoreBytee/EMBDR.git
+    cd EMBDR
+    ```
 
 2. **Build the project:**
-   ```sh
-   cargo build
-   ```
+    ```sh
+    cargo build
+    ```
 
 ## Configuration
 
@@ -64,10 +65,6 @@ Contributions are welcome! To contribute:
 
 Please follow the existing code style and include clear commit messages.
 
-## License
-
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
-
 ## Publishing a New Release
 
 There is a workflow in this repository to publish a new release. To activate it, create a new tag and push it to GitHub:
@@ -78,3 +75,7 @@ git push origin --tags
 ```
 
 This will trigger the publish release workflow, which builds the binary and creates a GitHub release with the compiled artifact.
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
