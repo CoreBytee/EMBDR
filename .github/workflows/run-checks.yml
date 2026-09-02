@@ -14,8 +14,6 @@ jobs:
         steps:
             - name: Checkout
               uses: actions/checkout@v6
-            - name: Install bun
-              uses: oven-sh/setup-bun@v2
             - name: Install bun dependencies
               run: bun install
             - name: Run cargo checks
@@ -27,8 +25,6 @@ jobs:
         steps:
             - name: Checkout
               uses: actions/checkout@v6
-            - name: Install bun
-              uses: oven-sh/setup-bun@v2
             - name: Install bun dependencies
               run: bun install
             - name: Run cargo tests

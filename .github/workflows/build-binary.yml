@@ -11,11 +11,6 @@ jobs:
         steps:
             - uses: actions/checkout@v6
 
-            # Setup
-            - uses: oven-sh/setup-bun@v2
-            # - uses: Swatinem/rust-cache@v2
-            - run: bun install
-
             - name: Build binary
               run: cargo build --verbose
 
