@@ -13,7 +13,6 @@ impl InstagramSource {
     pub fn new() -> Self {
         let instagram_client = match std::env::var("PROXY_URL") {
             Ok(proxy_url) if !proxy_url.is_empty() => {
-                println!("Using proxy: {}", proxy_url);
                 let proxy = reqwest::Proxy::all(&proxy_url).expect("Failed to parse PROXY_URL");
                 let http_client = Client::builder()
                     .cookie_store(true)
