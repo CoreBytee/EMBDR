@@ -1,0 +1,35 @@
+name: Run checks
+on:
+    workflow_dispatch:
+    push:
+        branches:
+            - rust
+    pull_request:
+        branches:
+            - rust
+jobs:
+    cargo-check:
+        name: Run cargo checks
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+            - name: Install bun
+              uses: oven-sh/setup-bun@v2
+            - name: Install bun dependencies
+              run: bun install
+            - name: Run cargo checks
+              run: cargo check
+
+    cargo-test:
+        name: Run cargo tests
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6
+            - name: Install bun
+              uses: oven-sh/setup-bun@v2
+            - name: Install bun dependencies
+              run: bun install
+            - name: Run cargo tests
+              run: cargo test
