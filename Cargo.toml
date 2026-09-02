@@ -3,8 +3,10 @@ resolver = "3"
 members = [
     "packages/embdr",
     "packages/instagram-client",
+    "packages/tiktok-client",
 ]
 default-members = ["packages/embdr"]
 
 [workspace.dependencies]
 instagram-client = { path = "packages/instagram-client" }
+tiktok-client = { path = "packages/tiktok-client" }
