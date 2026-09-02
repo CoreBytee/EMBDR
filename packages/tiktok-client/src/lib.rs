@@ -82,13 +82,16 @@ impl TiktokClient {
     }
 
     pub async fn fetch_from_url(&self, url: &str) -> Result<TiktokPost> {
-        let parsed_url = Url::parse(url)
+        let resolved_url = self.resolve_share(url).await?;
+        let parsed_url = Url::parse(resolved_url.as_str())
             .map_err(|_| TiktokError::ShareResolveError("Failed to parse url".into()))?;
 
         let post_id = parsed_url
             .path_segments()
             .and_then(|segments| segments.last())
-            .ok_or_else(|| TiktokError::ShareResolveError("Could not extract post ID from URL".into()))?;
+            .ok_or_else(|| {
+                TiktokError::ShareResolveError("Could not extract post ID from URL".into())
+            })?;
 
         let api_url = format!(
             "https://offload.tnktok.com/users/username/statuses/{}",
