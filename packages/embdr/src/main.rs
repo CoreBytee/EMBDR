@@ -152,6 +152,11 @@ impl EMBDR {
                     );
                 }
 
+                http.update_message(message.channel_id, message.id)
+                    .flags(MessageFlags::SUPPRESS_EMBEDS)
+                    .await
+                    .ok();
+
                 let result = http
                     .create_message(message.channel_id)
                     .reply(message.id)

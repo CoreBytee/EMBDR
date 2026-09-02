@@ -235,7 +235,7 @@ const DOC_ID_FETCH_PLAY_COUNT: &str = "27234427476213202";
 const BASE_URL: &str = "https://www.instagram.com";
 const GRAPHQL_URL: &str = "https://www.instagram.com/graphql/query";
 
-const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.3";
 
 const MAX_RETRIES: u32 = 3;
 
@@ -557,11 +557,7 @@ impl InstagramClient {
     ///
     /// `user_id` can be a numeric PK (as `&str`) or username — the endpoint
     /// expects the numeric user PK though.
-    pub async fn fetch_play_count(
-        &self,
-        user_id: &str,
-        shortcode: &str,
-    ) -> Result<Option<u64>> {
+    pub async fn fetch_play_count(&self, user_id: &str, shortcode: &str) -> Result<Option<u64>> {
         let csrf = self.get_csrf_token().await?;
 
         let variables = json!({
