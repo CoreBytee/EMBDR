@@ -10,8 +10,6 @@ jobs:
         steps:
             - name: Checkout
               uses: actions/checkout@v6
-            - name: Install bun dependencies
-              run: bun install
             - name: Run cargo checks
               run: cargo check
 
@@ -21,7 +19,5 @@ jobs:
         steps:
             - name: Checkout
               uses: actions/checkout@v6
-            - name: Install bun dependencies
-              run: bun install
             - name: Run cargo tests
               run: cargo test
