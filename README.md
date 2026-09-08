@@ -1,19 +1,21 @@
 # EMBDR
 
-EMBDR is a Discord bot written in Rust that provides better embeds for Instagram links. When a user posts an Instagram link in a Discord server, EMBDR detects it and replies with a custom embed that displays a playable video and improved metadata.
+EMBDR is a Discord bot written in Rust that provides better embeds for social media links. When a user posts a supported link in a Discord server, EMBDR detects it and replies with a custom embed that displays media and improved metadata.
 
 ## Features
 
-- Detects Instagram links in Discord messages
-- Replies with a custom embed containing a playable video, author information, and post statistics
+- Detects Instagram, Reddit, and TikTok links in Discord messages
+- Replies with custom embeds containing playable videos/images, author information, community info, and post statistics
 - Extensible source system for adding support for additional platforms
 
 ## Project Structure
 
-EMBDR is organised as a Cargo workspace with two packages:
+EMBDR is organised as a Cargo workspace with the following packages:
 
 - **`packages/embdr`** — The main Discord bot. Connects to the Discord gateway, listens for messages, and replies with rich embeds.
 - **`packages/instagram-client`** — A standalone Rust library for interacting with Instagram's GraphQL API. Handles CSRF token management, shortcode extraction, and media fetching.
+- **`packages/reddit-client`** — A standalone Rust library for fetching Reddit post data via vxReddit's embed pages.
+- **`packages/tiktok-client`** — A standalone Rust library for fetching TikTok post data via the tnktok API.
 
 ## Prerequisites
 
@@ -42,7 +44,7 @@ DISCORD_TOKEN=your_discord_bot_token
 PROXY_URL=your_proxy_url
 ```
 
-The `PROXY_URL` variable is optional. When set, all Instagram API requests will be routed through the specified proxy.
+The `PROXY_URL` variable is optional. When set, all requests will be routed through the specified proxy.
 
 ## Running
 
