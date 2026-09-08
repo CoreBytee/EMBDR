@@ -1,4 +1,4 @@
-use reqwest::header::{HeaderMap, ACCEPT, USER_AGENT};
+use reqwest::header::{HeaderMap, USER_AGENT};
 use reqwest::{Client, StatusCode};
 use scraper::{Html, Selector};
 use thiserror::Error;
@@ -18,7 +18,7 @@ pub enum RedditError {
     #[error("Unexpected response with status {status}: {body}")]
     UnexpectedResponse { status: StatusCode, body: String },
 
-    #[error("Failed to parse RSS feed: {0}")]
+    #[error("Failed to parse page: {0}")]
     Parse(String),
 }
 
@@ -33,6 +33,7 @@ pub struct RedditPost {
     pub id: String,
     pub title: String,
     pub author: String,
+    pub subreddit: String,
     pub selftext: Option<String>,
     pub permalink: String,
     pub score: u64,
@@ -58,8 +59,10 @@ impl RedditMediaItem {
 // Constants
 // ---------------------------------------------------------------------------
 
-const DEFAULT_USER_AGENT: &str =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+const VXREDDIT_BASE_URL: &str = "https://vxreddit.com";
+
+/// User-Agent that matches vxReddit's bot detection for social-preview crawlers.
+const BOT_USER_AGENT: &str = "Discordbot/2.0";
 
 // ---------------------------------------------------------------------------
 // URL helpers
@@ -73,24 +76,23 @@ pub fn extract_post_id(url: &str) -> Option<String> {
     Some(post_id.to_string())
 }
 
-/// Build the RSS feed URL for a Reddit post.
-fn to_rss_url(url: &str) -> String {
-    let trimmed = url.trim_end_matches('/');
-    format!("{}/.rss", trimmed)
+fn strip_reddit_domain(url: &str) -> &str {
+    url.trim_start_matches("https://www.reddit.com")
+        .trim_start_matches("https://reddit.com")
+        .trim_start_matches("https://old.reddit.com")
 }
 
 // ---------------------------------------------------------------------------
 // Client
 // ---------------------------------------------------------------------------
 
-fn default_headers() -> HeaderMap {
+fn bot_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();
-    headers.insert(USER_AGENT, DEFAULT_USER_AGENT.parse().unwrap());
-    headers.insert(ACCEPT, "application/atom+xml".parse().unwrap());
+    headers.insert(USER_AGENT, BOT_USER_AGENT.parse().unwrap());
     headers
 }
 
-/// Reddit client that fetches post data via RSS feeds.
+/// Reddit client that fetches post data via vxReddit's embed pages.
 pub struct RedditClient {
     http_client: Client,
 }
@@ -98,13 +100,11 @@ pub struct RedditClient {
 impl RedditClient {
     /// Create a new client with default settings.
     pub fn new() -> Result<Self> {
-        let client = Client::builder()
-            .default_headers(default_headers())
+        let http_client = Client::builder()
+            .default_headers(bot_headers())
             .cookie_store(true)
             .build()?;
-        Ok(Self {
-            http_client: client,
-        })
+        Ok(Self { http_client })
     }
 
     /// Create a new client with a provided `reqwest::Client`.
@@ -112,27 +112,28 @@ impl RedditClient {
         Self { http_client }
     }
 
-    /// Fetch post data from a Reddit URL via its RSS feed.
+    /// Fetch post data from a Reddit URL via vxReddit's embed page.
     pub async fn fetch_from_url(&self, url: &str) -> Result<RedditPost> {
-        let rss_url = to_rss_url(url);
+        let path = strip_reddit_domain(url);
+        let vx_url = format!("{}{}", VXREDDIT_BASE_URL, path);
 
         let max_retries = 3;
         let mut last_status = None;
 
         for attempt in 0..max_retries {
-            let response = self.http_client.get(&rss_url).send().await?;
+            let response = self.http_client.get(&vx_url).send().await?;
 
             let status = response.status();
             if status.is_success() {
-                let xml = response.text().await?;
-                return parse_rss_feed(&xml, url);
+                let html = response.text().await?;
+                return parse_embed_page(&html, url);
             }
 
             if status == StatusCode::TOO_MANY_REQUESTS {
                 last_status = Some(status);
                 let wait_ms = 1000 * 2u64.pow(attempt);
                 tracing::warn!(
-                    "Reddit RSS request got 429 — retrying in {}ms (attempt {})",
+                    "vxReddit request got 429 — retrying in {}ms (attempt {})",
                     wait_ms,
                     attempt + 1,
                 );
@@ -152,201 +153,157 @@ impl RedditClient {
 }
 
 // ---------------------------------------------------------------------------
-// RSS parsing
+// HTML meta tag parsing
 // ---------------------------------------------------------------------------
 
-fn parse_rss_feed(xml: &str, original_url: &str) -> Result<RedditPost> {
-    let document = Html::parse_document(xml);
+fn parse_embed_page(html: &str, original_url: &str) -> Result<RedditPost> {
+    let document = Html::parse_document(html);
 
-    // The first <entry> in the feed is the post itself; subsequent entries are comments.
-    let entry_selector =
-        Selector::parse("entry").map_err(|e| RedditError::Parse(format!("Invalid selector: {}", e)))?;
+    let meta_sel = Selector::parse("meta").map_err(|e| {
+        RedditError::Parse(format!("Invalid selector: {}", e))
+    })?;
 
-    let post_entry = document
-        .select(&entry_selector)
-        .next()
-        .ok_or_else(|| RedditError::NoData {
-            url: original_url.to_string(),
-        })?;
+    let mut og_site_name = None;
+    let mut og_title = None;
+    let mut og_description = None;
+    let mut og_url = None;
+    let mut og_images: Vec<String> = Vec::new();
+    let mut og_video = None;
+    let mut oembed_title = None;
 
-    // Extract post ID from <id> tag (format: t3_xxxxx)
-    let id = get_text_content(&document, &post_entry, "id")
-        .map(|s| s.trim_start_matches("t3_").to_string())
-        .unwrap_or_default();
+    for meta in document.select(&meta_sel) {
+        let prop = meta
+            .attr("property")
+            .or_else(|| meta.attr("name"))
+            .unwrap_or_default();
+        let content = meta.attr("content").unwrap_or_default();
 
-    // Extract title
-    let title = get_text_content(&document, &post_entry, "title").unwrap_or_default();
+        match prop {
+            "og:site_name" => og_site_name = Some(content.to_string()),
+            "og:title" => og_title = Some(content.to_string()),
+            "og:description" => og_description = Some(content.to_string()),
+            "og:url" => og_url = Some(content.to_string()),
+            "og:image" => og_images.push(content.to_string()),
+            "og:video" => og_video = Some(content.to_string()),
+            _ => {}
+        }
+    }
 
-    // Extract author name from <author><name>
-    let author = {
-        let author_name_sel = Selector::parse("author name")
-            .map_err(|e| RedditError::Parse(format!("Invalid selector: {}", e)))?;
-        post_entry
-            .select(&author_name_sel)
-            .next()
-            .map(|el| el.text().collect::<String>())
+    // Extract oembed title from <link rel="alternate" type="application/json+oembed">
+    let link_sel = Selector::parse("link[rel='alternate'][type='application/json+oembed']").ok();
+    if let Some(sel) = link_sel {
+        if let Some(link) = document.select(&sel).next() {
+            oembed_title = link.attr("title").map(|s| s.to_string());
+        }
+    }
+
+    // Determine the actual post title:
+    // - For text/link posts where title==text: og:title is "vxReddit", real title is in oembed title.
+    // - For text posts with selftext: og:title has the real title.
+    // - For image/video posts: og:title has the real title.
+    let is_vxreddit_title = og_title.as_deref() == Some("vxReddit");
+
+    let title = if is_vxreddit_title {
+        oembed_title
+            .clone()
+            .or_else(|| og_description.clone())
             .unwrap_or_default()
-            .trim_start_matches("/u/")
-            .trim_start_matches("u/")
-            .to_string()
+    } else {
+        og_title.unwrap_or_default()
     };
 
-    // Extract permalink from <link href="...">
-    let permalink = post_entry
-        .attr("href")
-        .or_else(|| {
-            let link_sel = Selector::parse("link[rel='alternate']").ok()?;
-            post_entry.select(&link_sel).next()?.attr("href")
-        })
-        .map(|s| s.to_string())
-        .unwrap_or_default();
+    // Selftext: og:description contains selftext only when it differs from the
+    // resolved title AND there are no media items (image/video posts put the
+    // title in og:description).
+    let has_media = !og_images.is_empty() || og_video.is_some();
+    let selftext = og_description
+        .filter(|s| !s.is_empty())
+        .filter(|desc| *desc != title)
+        .filter(|_| !has_media);
 
-    // Extract media from the HTML content of the first entry
-    let media_items = extract_media_from_entry(&post_entry);
+    // Parse og:site_name: "{author} on r/{subreddit} - ⬆️ {upvotes} | 💬 {comments}"
+    let (author, subreddit, score, num_comments) =
+        parse_stats_line(og_site_name.as_deref().unwrap_or_default());
 
-    // Extract selftext from the content HTML
-    let selftext = extract_selftext_from_entry(&post_entry);
+    // Build permalink
+    let permalink = og_url
+        .clone()
+        .unwrap_or_else(|| original_url.to_string());
 
-    // Count comments (entries after the first one)
-    let num_comments = document.select(&entry_selector).count().saturating_sub(1) as u64;
+    // Extract post ID from permalink
+    let id = extract_post_id(&permalink).unwrap_or_default();
+
+    // Build media items.
+    // For video posts, og:image is just the thumbnail — skip it.
+    let mut media_items: Vec<RedditMediaItem> = Vec::new();
+
+    if let Some(video_url) = og_video {
+        media_items.push(RedditMediaItem::Video { url: video_url });
+    } else {
+        for img_url in &og_images {
+            if !media_items
+                .iter()
+                .any(|item| item.url() == img_url.as_str())
+            {
+                media_items.push(RedditMediaItem::Image {
+                    url: img_url.clone(),
+                });
+            }
+        }
+    }
 
     Ok(RedditPost {
         id,
         title,
         author,
+        subreddit,
         selftext,
         permalink,
-        score: 0, // RSS doesn't include score
+        score,
         num_comments,
         media_items,
     })
 }
 
-fn get_text_content(
-    _document: &Html,
-    element: &scraper::ElementRef,
-    tag: &str,
-) -> Option<String> {
-    let sel = Selector::parse(tag).ok()?;
-    let el = element.select(&sel).next()?;
-    Some(el.text().collect::<String>())
-}
+/// Parse the stats line from og:site_name.
+/// Format: "{author} on r/{subreddit} - ⬆️ {upvotes} | 💬 {comments}"
+fn parse_stats_line(line: &str) -> (String, String, u64, u64) {
+    let mut author = String::new();
+    let mut subreddit = String::new();
+    let mut score = 0u64;
+    let mut num_comments = 0u64;
 
-fn extract_selftext_from_entry(entry: &scraper::ElementRef) -> Option<String> {
-    let content_sel = Selector::parse("content").ok()?;
-    let content_el = entry.select(&content_sel).next()?;
-    let html_content = content_el.text().collect::<String>();
+    // Extract author: everything before " on "
+    if let Some(on_idx) = line.find(" on ") {
+        author = line[..on_idx]
+            .trim_start_matches("u/")
+            .trim_start_matches("/u/")
+            .to_string();
+    }
 
-    // Parse the HTML content to extract text
-    let fragment = Html::parse_fragment(&html_content);
-    let md_sel = Selector::parse("div.md p").ok();
-    if let Some(sel) = md_sel {
-        let text: String = fragment
-            .select(&sel)
-            .map(|p| p.text().collect::<String>())
-            .collect::<Vec<_>>()
-            .join("\n\n");
-        if !text.is_empty() {
-            return Some(text);
+    // Extract subreddit: between "on " and " - "
+    if let Some(on_idx) = line.find(" on ") {
+        let rest = &line[on_idx + 4..];
+        if let Some(dash_idx) = rest.find(" - ") {
+            subreddit = rest[..dash_idx].to_string();
         }
     }
 
-    // Fallback: extract text from any paragraph
-    let p_sel = Selector::parse("p").ok()?;
-    let text: String = fragment
-        .select(&p_sel)
-        .map(|p| p.text().collect::<String>())
-        .collect::<Vec<_>>()
-        .join("\n\n");
-    if text.is_empty() {
-        None
-    } else {
-        Some(text)
-    }
-}
-
-fn extract_media_from_entry(entry: &scraper::ElementRef) -> Vec<RedditMediaItem> {
-    let mut items = Vec::new();
-
-    let content_sel = Selector::parse("content").ok();
-    if let Some(sel) = content_sel {
-        if let Some(content_el) = entry.select(&sel).next() {
-            let html_content = content_el.text().collect::<String>();
-            let fragment = Html::parse_fragment(&html_content);
-
-            // 1) Check for video sources first — return immediately if found
-            let video_sel = Selector::parse("video source, video").ok();
-            if let Some(sel) = video_sel {
-                for el in fragment.select(&sel) {
-                    if let Some(src) = el.attr("src") {
-                        if src.contains("v.redd.it") || src.contains("video") {
-                            let cleaned = src.replace("&amp;", "&");
-                            items.push(RedditMediaItem::Video { url: cleaned });
-                            return items;
-                        }
-                    }
-                }
-            }
-
-            // 2) Look for direct <a href="...i.redd.it..."> links (full resolution)
-            let link_sel = Selector::parse("a[href]").ok();
-            if let Some(sel) = link_sel {
-                for el in fragment.select(&sel) {
-                    if let Some(href) = el.attr("href") {
-                        let cleaned = href.replace("&amp;", "&");
-                        if cleaned.contains("v.redd.it") && cleaned.contains("DASH_") {
-                            if !items.iter().any(|item| item.url() == &cleaned) {
-                                items.push(RedditMediaItem::Video { url: cleaned });
-                            }
-                        } else if (cleaned.contains("i.redd.it")
-                            || cleaned.contains("i.imgur.com"))
-                            && !items.iter().any(|item| item.url() == &cleaned)
-                        {
-                            items.push(RedditMediaItem::Image { url: cleaned });
-                        }
-                    }
-                }
-            }
-
-            // 3) Only add preview.redd.it if we have no i.redd.it images yet
-            let has_full_res = items.iter().any(|item| match item {
-                RedditMediaItem::Image { url } => url.contains("i.redd.it") || url.contains("i.imgur.com"),
-                _ => false,
-            });
-            if !has_full_res {
-                let img_sel = Selector::parse("img").ok();
-                if let Some(sel) = img_sel {
-                    for el in fragment.select(&sel) {
-                        if let Some(src) = el.attr("src") {
-                            let cleaned = src.replace("&amp;", "&");
-                            if (cleaned.contains("i.redd.it")
-                                || cleaned.contains("preview.redd.it")
-                                || cleaned.contains("i.imgur.com"))
-                                && !items.iter().any(|item| item.url() == &cleaned)
-                            {
-                                items.push(RedditMediaItem::Image { url: cleaned });
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    // Extract upvotes: between "⬆️ " and " |" or end
+    if let Some(up_idx) = line.find("⬆️ ") {
+        let rest = &line[up_idx + "⬆️ ".len()..];
+        let num_str: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+        score = num_str.parse().unwrap_or(0);
     }
 
-    // 4) Fallback: <media:thumbnail> only if nothing else found
-    if items.is_empty() {
-        let thumb_sel = Selector::parse("media|thumbnail, thumbnail").ok();
-        if let Some(sel) = thumb_sel {
-            for el in entry.select(&sel) {
-                if let Some(url) = el.attr("url") {
-                    let cleaned = url.replace("&amp;", "&");
-                    items.push(RedditMediaItem::Image { url: cleaned });
-                }
-            }
-        }
+    // Extract comments: after "💬 "
+    if let Some(comment_idx) = line.find("💬 ") {
+        let rest = &line[comment_idx + "💬 ".len()..];
+        let num_str: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+        num_comments = num_str.parse().unwrap_or(0);
     }
 
-    items
+    (author, subreddit, score, num_comments)
 }
 
 // ---------------------------------------------------------------------------
@@ -370,17 +327,38 @@ mod tests {
     }
 
     #[test]
-    fn test_to_rss_url() {
-        let url = "https://www.reddit.com/r/rust/comments/abc123/title/";
-        assert_eq!(
-            to_rss_url(url),
-            "https://www.reddit.com/r/rust/comments/abc123/title/.rss"
-        );
+    fn test_parse_stats_line() {
+        let (author, sub, score, comments) =
+            parse_stats_line("u/iquizuanswer on r/Piracy - ⬆️ 1380 | 💬 34");
+        assert_eq!(author, "iquizuanswer");
+        assert_eq!(sub, "r/Piracy");
+        assert_eq!(score, 1380);
+        assert_eq!(comments, 34);
+    }
 
-        let url = "https://old.reddit.com/r/rust/comments/abc123/title";
+    #[test]
+    fn test_parse_stats_line_no_comments() {
+        let (author, sub, score, comments) =
+            parse_stats_line("u/test on r/rust - ⬆️ 42");
+        assert_eq!(author, "test");
+        assert_eq!(sub, "r/rust");
+        assert_eq!(score, 42);
+        assert_eq!(comments, 0);
+    }
+
+    #[test]
+    fn test_strip_reddit_domain() {
         assert_eq!(
-            to_rss_url(url),
-            "https://old.reddit.com/r/rust/comments/abc123/title/.rss"
+            strip_reddit_domain("https://www.reddit.com/r/rust/comments/abc123/"),
+            "/r/rust/comments/abc123/"
+        );
+        assert_eq!(
+            strip_reddit_domain("https://old.reddit.com/r/rust/comments/abc123/"),
+            "/r/rust/comments/abc123/"
+        );
+        assert_eq!(
+            strip_reddit_domain("https://reddit.com/r/rust/comments/abc123/"),
+            "/r/rust/comments/abc123/"
         );
     }
 }

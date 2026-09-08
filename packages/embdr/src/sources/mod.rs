@@ -42,7 +42,9 @@ pub type Sources = Vec<Box<dyn Source + Send + Sync>>;
 #[derive(Debug)]
 pub struct MediaData {
     pub id: String,
+    pub title: Option<String>,
     pub author: MediaAuthor,
+    pub community: Option<MediaCommunity>,
     pub description: Option<String>,
     pub items: Vec<MediaItem>,
     pub properties: Vec<MediaProperty>,
@@ -55,12 +57,19 @@ pub struct MediaAuthor {
 }
 
 #[derive(Debug)]
+pub struct MediaCommunity {
+    pub name: String,
+    pub url: String,
+}
+
+#[derive(Debug)]
 pub struct MediaItem {
     pub url: String,
 }
 
 #[derive(Debug)]
 pub enum MediaProperty {
+    Score(u64),
     LikeCount(u64),
     CommentCount(u64),
 }
@@ -68,6 +77,7 @@ pub enum MediaProperty {
 impl MediaProperty {
     pub fn emoji(&self) -> String {
         match self {
+            MediaProperty::Score(_) => "↕️".to_string(),
             MediaProperty::LikeCount(_) => "❤️".to_string(),
             MediaProperty::CommentCount(_) => "💬".to_string(),
         }

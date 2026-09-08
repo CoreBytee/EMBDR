@@ -84,13 +84,28 @@ impl EMBDR {
 
                     let mut container = ContainerBuilder::new().accent_color(Some(source.color()));
 
-                    container = container.component(
-                        TextDisplayBuilder::new(format!(
+                    let header = match (&media_data.title, &media_data.community) {
+                        (Some(title), Some(community)) => format!(
+                            "## [{}]({}) · [{}]({})",
+                            community.name, community.url,
+                            title, media_data.author.url
+                        ),
+                        (Some(title), None) => format!(
+                            "## [{}]({})",
+                            title, media_data.author.url
+                        ),
+                        (None, Some(community)) => format!(
+                            "## [{}]({}) · Post by [{}]({})",
+                            community.name, community.url,
+                            media_data.author.name, media_data.author.url
+                        ),
+                        (None, None) => format!(
                             "## Post by [{}]({})",
                             media_data.author.name, media_data.author.url
-                        ))
-                        .build(),
-                    );
+                        ),
+                    };
+
+                    container = container.component(TextDisplayBuilder::new(header).build());
 
                     if let Some(description) = media_data.description.clone() {
                         container =
@@ -123,6 +138,9 @@ impl EMBDR {
                             .properties
                             .iter()
                             .map(|property| match property {
+                                sources::MediaProperty::Score(count) => {
+                                    format!("{} {}", property.emoji(), count)
+                                }
                                 sources::MediaProperty::LikeCount(count) => {
                                     format!("{} {}", property.emoji(), count)
                                 }

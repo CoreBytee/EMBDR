@@ -54,6 +54,7 @@ impl Source for InstagramSource {
 
         Ok(MediaData {
             id: instagram_post.shortcode.clone(),
+            title: None,
             author: MediaAuthor {
                 name: instagram_post.owner.username.clone(),
                 url: format!(
@@ -61,6 +62,7 @@ impl Source for InstagramSource {
                     instagram_post.owner.username
                 ),
             },
+            community: None,
             description: instagram_post.caption.clone().into(),
             items: instagram_post
                 .media_items

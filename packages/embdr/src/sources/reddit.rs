@@ -2,7 +2,7 @@ use url::Url;
 
 use reddit_client::RedditClient;
 
-use crate::sources::{MediaAuthor, MediaData, MediaItem, MediaProperty, Source};
+use crate::sources::{MediaAuthor, MediaCommunity, MediaData, MediaItem, MediaProperty, Source};
 
 pub struct RedditSource {
     reddit_client: RedditClient,
@@ -43,9 +43,10 @@ impl Source for RedditSource {
             || hostname == "old.reddit.com"
             || hostname == "v.redd.it";
 
-        let has_comments_path = url.path().contains("/comments/");
+        let path = url.path();
+        let is_reddit_path = path.contains("/comments/") || path.contains("/s/");
 
-        return hostname_matches && has_comments_path;
+        return hostname_matches && is_reddit_path;
     }
 
     async fn extract_media(
@@ -56,12 +57,23 @@ impl Source for RedditSource {
 
         let description = reddit_post.selftext.filter(|text| !text.is_empty());
 
+        let community = if !reddit_post.subreddit.is_empty() {
+            Some(MediaCommunity {
+                name: reddit_post.subreddit.clone(),
+                url: format!("https://www.reddit.com/{}", reddit_post.subreddit),
+            })
+        } else {
+            None
+        };
+
         Ok(MediaData {
             id: reddit_post.id,
+            title: Some(reddit_post.title.clone()),
             author: MediaAuthor {
                 name: format!("u/{}", reddit_post.author),
                 url: format!("https://www.reddit.com/user/{}", reddit_post.author),
             },
+            community,
             description,
             items: reddit_post
                 .media_items
@@ -71,7 +83,7 @@ impl Source for RedditSource {
                 })
                 .collect(),
             properties: vec![
-                // MediaProperty::LikeCount(reddit_post.score), // not in rss data
+                MediaProperty::Score(reddit_post.score),
                 MediaProperty::CommentCount(reddit_post.num_comments),
             ],
         })
