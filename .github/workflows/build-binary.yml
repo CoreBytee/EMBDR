@@ -2,6 +2,7 @@ name: Build binary
 on:
     workflow_dispatch:
     push:
+        branches: [main]
 jobs:
     build-binary:
         name: Build binary

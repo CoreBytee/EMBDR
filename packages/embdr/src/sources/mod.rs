@@ -1,9 +1,11 @@
 use url::Url;
 
 use crate::sources::instagram::InstagramSource;
+use crate::sources::reddit::RedditSource;
 use crate::sources::tiktok::TiktokSource;
 
 mod instagram;
+mod reddit;
 mod tiktok;
 
 #[allow(dead_code)]
@@ -32,7 +34,11 @@ pub trait Source {
 }
 
 pub fn get_sources() -> Sources {
-    vec![Box::new(InstagramSource::new()), Box::new(TiktokSource::new())]
+    vec![
+        Box::new(InstagramSource::new()),
+        Box::new(RedditSource::new()),
+        Box::new(TiktokSource::new()),
+    ]
 }
 
 pub type Sources = Vec<Box<dyn Source + Send + Sync>>;
@@ -40,7 +46,9 @@ pub type Sources = Vec<Box<dyn Source + Send + Sync>>;
 #[derive(Debug)]
 pub struct MediaData {
     pub id: String,
+    pub title: Option<String>,
     pub author: MediaAuthor,
+    pub community: Option<MediaCommunity>,
     pub description: Option<String>,
     pub items: Vec<MediaItem>,
     pub properties: Vec<MediaProperty>,
@@ -53,21 +61,31 @@ pub struct MediaAuthor {
 }
 
 #[derive(Debug)]
+pub struct MediaCommunity {
+    pub name: String,
+    pub url: String,
+}
+
+#[derive(Debug)]
 pub struct MediaItem {
     pub url: String,
 }
 
 #[derive(Debug)]
 pub enum MediaProperty {
+    Score(u64),
     LikeCount(u64),
     CommentCount(u64),
+    RepostCount(u64),
 }
 
 impl MediaProperty {
     pub fn emoji(&self) -> String {
         match self {
+            MediaProperty::Score(_) => "↕️".to_string(),
             MediaProperty::LikeCount(_) => "❤️".to_string(),
             MediaProperty::CommentCount(_) => "💬".to_string(),
+            MediaProperty::RepostCount(_) => "🔁".to_string(),
         }
     }
 }
