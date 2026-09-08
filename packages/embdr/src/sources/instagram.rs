@@ -1,3 +1,4 @@
+use reqwest::Client;
 use url::Url;
 
 use instagram_client::InstagramClient;
@@ -10,7 +11,18 @@ pub struct InstagramSource {
 
 impl InstagramSource {
     pub fn new() -> Self {
-        let instagram_client = InstagramClient::new().expect("Failed to create instagram client");
+        let instagram_client = match std::env::var("PROXY_URL") {
+            Ok(proxy_url) if !proxy_url.is_empty() => {
+                let proxy = reqwest::Proxy::all(&proxy_url).expect("Failed to parse PROXY_URL");
+                let http_client = Client::builder()
+                    .cookie_store(true)
+                    .proxy(proxy)
+                    .build()
+                    .expect("Failed to build HTTP client with proxy");
+                InstagramClient::new_with_http(http_client)
+            }
+            _ => InstagramClient::new().expect("Failed to create instagram client"),
+        };
         Self { instagram_client }
     }
 }

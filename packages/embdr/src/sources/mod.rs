@@ -2,10 +2,13 @@ use url::Url;
 
 use crate::sources::instagram::InstagramSource;
 use crate::sources::reddit::RedditSource;
+use crate::sources::tiktok::TiktokSource;
 
 mod instagram;
 mod reddit;
+mod tiktok;
 
+#[allow(dead_code)]
 #[async_trait::async_trait]
 pub trait Source {
     /// Returns the name of the source.
@@ -34,6 +37,7 @@ pub fn get_sources() -> Sources {
     vec![
         Box::new(InstagramSource::new()),
         Box::new(RedditSource::new()),
+        Box::new(TiktokSource::new()),
     ]
 }
 

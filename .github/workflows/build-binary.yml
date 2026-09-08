@@ -1,0 +1,21 @@
+name: Build binary
+on:
+    workflow_dispatch:
+    push:
+jobs:
+    build-binary:
+        name: Build binary
+        runs-on: ubuntu-24.04-arm
+        steps:
+            - uses: actions/checkout@v6
+
+            - name: Build binary
+              run: cargo build --verbose
+
+            - run: cp target/debug/embdr ./embdr-arm64
+
+            - uses: actions/upload-artifact@v7
+              with:
+                  name: embdr-arm64
+                  path: ./embdr-arm64
+                  archive: false

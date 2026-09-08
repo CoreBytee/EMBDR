@@ -1,0 +1,34 @@
+name: Publish release
+
+permissions:
+    contents: write
+
+on:
+    push:
+        tags:
+            - "v*"
+jobs:
+    publish-release:
+        name: Publish release
+        runs-on: ubuntu-24.04-arm
+        steps:
+            - uses: actions/checkout@v6
+
+            - name: Build binary
+              run: cargo build --release --verbose
+
+            - run: cp target/release/embdr ./embdr-arm64
+
+            - name: Publish release
+              uses: softprops/action-gh-release@v3
+              with:
+                  files: ./embdr-arm64
+                  generate_release_notes: true
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - uses: actions/upload-artifact@v7
+              with:
+                  name: embdr-arm64
+                  path: ./embdr-arm64
+                  archive: false

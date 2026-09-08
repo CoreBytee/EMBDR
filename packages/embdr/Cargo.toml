@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 instagram-client.workspace = true
 reddit-client.workspace = true
+tiktok-client.workspace = true
 
 # Environment
 dotenvy = "0.15.7"
@@ -26,6 +27,11 @@ twilight-util = { version = "0.17.0", features = ["builder"] }
 # TLS crypto provider for rustls (used by twilight)
 rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
 
+# HTTP (for proxy support)
+reqwest = { version = "0.12", features = ["cookies"] }
+
 # Other
 async-trait = "0.1.92"
 url = "2.5.8"
+scraper = "0.22"
+thiserror = "2"
