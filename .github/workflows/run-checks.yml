@@ -2,11 +2,7 @@ name: Run checks
 on:
     workflow_dispatch:
     push:
-        branches:
-            - rust
     pull_request:
-        branches:
-            - rust
 jobs:
     cargo-check:
         name: Run cargo checks
