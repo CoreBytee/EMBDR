@@ -76,6 +76,7 @@ pub enum MediaProperty {
     Score(u64),
     LikeCount(u64),
     CommentCount(u64),
+    RepostCount(u64),
 }
 
 impl MediaProperty {
@@ -84,6 +85,7 @@ impl MediaProperty {
             MediaProperty::Score(_) => "↕️".to_string(),
             MediaProperty::LikeCount(_) => "❤️".to_string(),
             MediaProperty::CommentCount(_) => "💬".to_string(),
+            MediaProperty::RepostCount(_) => "🔁".to_string(),
         }
     }
 }

@@ -147,6 +147,9 @@ impl EMBDR {
                                 sources::MediaProperty::CommentCount(count) => {
                                     format!("{} {}", property.emoji(), count)
                                 }
+                                sources::MediaProperty::RepostCount(count) => {
+                                    format!("{} {}", property.emoji(), count)
+                                }
                             })
                             .collect::<Vec<_>>()
                             .join(" • ");
