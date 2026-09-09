@@ -75,7 +75,7 @@ impl Source for InstagramSource {
                 ),
             },
             community: None,
-            description: instagram_post.caption.clone().into(),
+            description: Some(instagram_post.caption.clone()).filter(|s| !s.is_empty()),
             items: instagram_post
                 .media_items
                 .into_iter()
