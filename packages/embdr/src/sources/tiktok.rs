@@ -44,7 +44,10 @@ fn parse_tiktok_stats(content: &str) -> (Option<String>, u64, u64, u64) {
         let stats_line = &text[start..];
 
         // Collect all segments, splitting on any whitespace (including \u2000)
-        let segments: Vec<&str> = stats_line.split(|c: char| c.is_whitespace()).filter(|s| !s.is_empty()).collect();
+        let segments: Vec<&str> = stats_line
+            .split(|c: char| c.is_whitespace())
+            .filter(|s| !s.is_empty())
+            .collect();
         let mut i = 0;
         while i < segments.len() {
             let seg = segments[i];
@@ -87,7 +90,10 @@ fn parse_tiktok_stats(content: &str) -> (Option<String>, u64, u64, u64) {
 
 /// Extract a number from a segment, handling K/M suffixes.
 fn extract_number(s: &str) -> Option<u64> {
-    let num_str: String = s.chars().filter(|c| c.is_ascii_digit() || *c == '.').collect();
+    let num_str: String = s
+        .chars()
+        .filter(|c| c.is_ascii_digit() || *c == '.')
+        .collect();
     if num_str.is_empty() {
         return None;
     }
@@ -109,9 +115,13 @@ fn extract_number(s: &str) -> Option<u64> {
 
 /// Assign a parsed number to the correct stat based on which emoji is present.
 fn assign_stat(seg: &str, num: u64, likes: &mut u64, comments: &mut u64, reposts: &mut u64) {
-    if seg.contains('❤') { *likes = num; }
-    else if seg.contains('💬') { *comments = num; }
-    else if seg.contains('🔁') { *reposts = num; }
+    if seg.contains('❤') {
+        *likes = num;
+    } else if seg.contains('💬') {
+        *comments = num;
+    } else if seg.contains('🔁') {
+        *reposts = num;
+    }
 }
 
 #[async_trait::async_trait]
@@ -149,8 +159,7 @@ impl Source for TiktokSource {
     ) -> Result<crate::sources::MediaData, Box<dyn std::error::Error + Send + Sync>> {
         let tiktok_post = self.tiktok_client.fetch_from_url(url.as_str()).await?;
 
-        let (description, likes, comments, reposts) =
-            parse_tiktok_stats(&tiktok_post.content);
+        let (description, likes, comments, reposts) = parse_tiktok_stats(&tiktok_post.content);
 
         let mut properties = Vec::new();
         if likes > 0 {
@@ -192,7 +201,10 @@ mod tests {
     fn test_parse_tiktok_stats() {
         let content = "**Deze Guy😭😭😭**\n#rijbewijs #rijles #rijschool \n\n❤️341 💬 6 🔁 59";
         let (desc, likes, comments, reposts) = parse_tiktok_stats(content);
-        assert_eq!(desc.unwrap(), "**Deze Guy😭😭😭**\n#rijbewijs #rijles #rijschool");
+        assert_eq!(
+            desc.unwrap(),
+            "**Deze Guy😭😭😭**\n#rijbewijs #rijles #rijschool"
+        );
         assert_eq!(likes, 341);
         assert_eq!(comments, 6);
         assert_eq!(reposts, 59);

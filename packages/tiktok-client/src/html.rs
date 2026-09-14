@@ -14,30 +14,28 @@ fn render_node(node: &scraper::ElementRef, output: &mut String) {
             scraper::Node::Text(text) => {
                 output.push_str(text);
             }
-            scraper::Node::Element(element) => {
-                match element.name() {
-                    "b" => {
-                        output.push_str("**");
-                        if let Some(element_ref) = scraper::ElementRef::wrap(child) {
-                            render_node(&element_ref, output);
-                        }
-                        output.push_str("**");
+            scraper::Node::Element(element) => match element.name() {
+                "b" => {
+                    output.push_str("**");
+                    if let Some(element_ref) = scraper::ElementRef::wrap(child) {
+                        render_node(&element_ref, output);
                     }
-                    "br" => {
-                        output.push('\n');
-                    }
-                    "a" => {
-                        if let Some(element_ref) = scraper::ElementRef::wrap(child) {
-                            render_node(&element_ref, output);
-                        }
-                    }
-                    _ => {
-                        if let Some(element_ref) = scraper::ElementRef::wrap(child) {
-                            render_node(&element_ref, output);
-                        }
+                    output.push_str("**");
+                }
+                "br" => {
+                    output.push('\n');
+                }
+                "a" => {
+                    if let Some(element_ref) = scraper::ElementRef::wrap(child) {
+                        render_node(&element_ref, output);
                     }
                 }
-            }
+                _ => {
+                    if let Some(element_ref) = scraper::ElementRef::wrap(child) {
+                        render_node(&element_ref, output);
+                    }
+                }
+            },
             _ => {}
         }
     }

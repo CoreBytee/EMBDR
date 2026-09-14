@@ -159,9 +159,8 @@ impl RedditClient {
 fn parse_embed_page(html: &str, original_url: &str) -> Result<RedditPost> {
     let document = Html::parse_document(html);
 
-    let meta_sel = Selector::parse("meta").map_err(|e| {
-        RedditError::Parse(format!("Invalid selector: {}", e))
-    })?;
+    let meta_sel = Selector::parse("meta")
+        .map_err(|e| RedditError::Parse(format!("Invalid selector: {}", e)))?;
 
     let mut og_site_name = None;
     let mut og_title = None;
@@ -226,9 +225,7 @@ fn parse_embed_page(html: &str, original_url: &str) -> Result<RedditPost> {
         parse_stats_line(og_site_name.as_deref().unwrap_or_default());
 
     // Build permalink
-    let permalink = og_url
-        .clone()
-        .unwrap_or_else(|| original_url.to_string());
+    let permalink = og_url.clone().unwrap_or_else(|| original_url.to_string());
 
     // Extract post ID from permalink
     let id = extract_post_id(&permalink).unwrap_or_default();
@@ -338,8 +335,7 @@ mod tests {
 
     #[test]
     fn test_parse_stats_line_no_comments() {
-        let (author, sub, score, comments) =
-            parse_stats_line("u/test on r/rust - ⬆️ 42");
+        let (author, sub, score, comments) = parse_stats_line("u/test on r/rust - ⬆️ 42");
         assert_eq!(author, "test");
         assert_eq!(sub, "r/rust");
         assert_eq!(score, 42);
