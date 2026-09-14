@@ -47,6 +47,7 @@ pub type Sources = Vec<Box<dyn Source + Send + Sync>>;
 pub struct MediaData {
     #[allow(dead_code)]
     pub id: String,
+    pub url: String,
     pub title: Option<String>,
     pub author: MediaAuthor,
     pub community: Option<MediaCommunity>,

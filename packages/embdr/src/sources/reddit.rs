@@ -68,6 +68,7 @@ impl Source for RedditSource {
 
         Ok(MediaData {
             id: reddit_post.id,
+            url: url.to_string(),
             title: Some(reddit_post.title.clone()),
             author: MediaAuthor {
                 name: format!("u/{}", reddit_post.author),

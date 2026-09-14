@@ -4,9 +4,9 @@ use twilight_gateway::{Event, EventTypeFlags, Intents, Shard, ShardId, StreamExt
 use twilight_http::Client as HttpClient;
 use twilight_model::channel::message::{
     Component, MessageFlags,
-    component::{MediaGallery, MediaGalleryItem, UnfurledMediaItem},
+    component::{MediaGallery, MediaGalleryItem, SeparatorSpacingSize, UnfurledMediaItem},
 };
-use twilight_util::builder::message::{ContainerBuilder, TextDisplayBuilder};
+use twilight_util::builder::message::{ContainerBuilder, SeparatorBuilder, TextDisplayBuilder};
 
 use crate::{sources::Sources, utility::extract_urls::extract_urls};
 
@@ -87,9 +87,9 @@ impl EMBDR {
                     let header = match (&media_data.title, &media_data.community) {
                         (Some(title), Some(community)) => format!(
                             "## [{}]({}) · [{}]({})",
-                            community.name, community.url, title, media_data.author.url
+                            community.name, community.url, title, media_data.url
                         ),
-                        (Some(title), None) => format!("## [{}]({})", title, media_data.author.url),
+                        (Some(title), None) => format!("## [{}]({})", title, media_data.url),
                         (None, Some(community)) => format!(
                             "## [{}]({}) · Post by [{}]({})",
                             community.name,
@@ -152,8 +152,14 @@ impl EMBDR {
                             .collect::<Vec<_>>()
                             .join(" • ");
 
-                        container =
-                            container.component(TextDisplayBuilder::new(properties_text).build());
+                        container = container
+                            .component(
+                                SeparatorBuilder::new()
+                                    .divider(true)
+                                    .spacing(SeparatorSpacingSize::Small)
+                                    .build(),
+                            )
+                            .component(TextDisplayBuilder::new(properties_text).build());
                     }
 
                     components.push(container.build().into());

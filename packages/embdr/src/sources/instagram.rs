@@ -66,6 +66,7 @@ impl Source for InstagramSource {
 
         Ok(MediaData {
             id: instagram_post.shortcode.clone(),
+            url: url.to_string(),
             title: None,
             author: MediaAuthor {
                 name: instagram_post.owner.username.clone(),

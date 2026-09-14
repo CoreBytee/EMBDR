@@ -174,6 +174,7 @@ impl Source for TiktokSource {
 
         Ok(MediaData {
             id: tiktok_post.id.clone(),
+            url: url.to_string(),
             title: None,
             author: MediaAuthor {
                 name: tiktok_post.account.display_name.clone(),
