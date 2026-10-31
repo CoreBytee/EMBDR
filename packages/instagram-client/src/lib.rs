@@ -86,6 +86,9 @@ pub enum InstagramError {
     #[error("GraphQL request failed with status {status}: {body}")]
     GraphQl { status: StatusCode, body: String },
 
+    #[error("Embed request failed with status {status}: {body}")]
+    Embed { status: StatusCode, body: String },
+
     #[error("API returned no items for shortcode {shortcode}")]
     NoItems { shortcode: String },
 
@@ -205,7 +208,7 @@ pub struct MediaOwner {
     pub is_private: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Dimensions {
     pub width: u32,
     pub height: u32,
@@ -226,6 +229,95 @@ impl CarouselItem {
 }
 
 // ---------------------------------------------------------------------------
+// Types — embed page (`/p/{shortcode}/embed/captioned/`)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+struct EmbedContext {
+    #[serde(default)]
+    gql_data: Option<EmbedGqlData>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EmbedGqlData {
+    #[serde(default)]
+    shortcode_media: Option<EmbedMedia>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EmbedMedia {
+    #[serde(rename = "__typename", default)]
+    typename: Option<String>,
+    #[serde(default)]
+    shortcode: Option<String>,
+    #[serde(default)]
+    is_video: Option<bool>,
+    #[serde(default)]
+    display_url: Option<String>,
+    #[serde(default)]
+    video_url: Option<String>,
+    #[serde(default)]
+    dimensions: Option<Dimensions>,
+    #[serde(default)]
+    owner: Option<EmbedOwner>,
+    #[serde(default)]
+    edge_media_to_caption: Option<EmbedEdges<EmbedCaption>>,
+    #[serde(default)]
+    edge_liked_by: Option<EmbedCount>,
+    #[serde(default)]
+    edge_media_preview_like: Option<EmbedCount>,
+    #[serde(default)]
+    edge_media_to_comment: Option<EmbedCount>,
+    #[serde(default)]
+    edge_sidecar_to_children: Option<EmbedEdges<EmbedChild>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EmbedOwner {
+    #[serde(default)]
+    username: Option<String>,
+    #[serde(default)]
+    full_name: Option<String>,
+    #[serde(default)]
+    is_verified: Option<bool>,
+    #[serde(default)]
+    is_private: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EmbedEdges<T> {
+    #[serde(default)]
+    edges: Vec<EmbedEdge<T>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EmbedEdge<T> {
+    node: T,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct EmbedCaption {
+    #[serde(default)]
+    text: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EmbedCount {
+    #[serde(default)]
+    count: Option<u64>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct EmbedChild {
+    #[serde(default)]
+    is_video: Option<bool>,
+    #[serde(default)]
+    display_url: Option<String>,
+    #[serde(default)]
+    video_url: Option<String>,
+}
+
+// ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
@@ -236,6 +328,13 @@ const BASE_URL: &str = "https://www.instagram.com";
 const GRAPHQL_URL: &str = "https://www.instagram.com/graphql/query";
 
 const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.3";
+
+/// Instagram serves the server-rendered embed payload (including `contextJSON`)
+/// to link-preview crawlers, while browsers get a JavaScript shell.
+const CRAWLER_USER_AGENT: &str =
+    "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)";
+
+const EMBED_MARKER: &str = "\"contextJSON\":\"";
 
 const MAX_RETRIES: u32 = 3;
 
@@ -275,6 +374,7 @@ pub async fn get_csrf_token(client: &Client) -> Result<String> {
 
 /// Extract the shortcode from various Instagram URL formats.
 pub fn extract_shortcode(url: &str) -> String {
+    let url = url.split(['?', '#']).next().unwrap_or(url);
     let parts: Vec<&str> = url.split('/').collect();
     let tags = ["p", "reel", "tv", "reels"];
     let idx = parts.iter().position(|s| tags.contains(s)).unwrap_or(0) + 1;
@@ -483,6 +583,127 @@ fn normalize_item(item: &RawMediaItem) -> InstagramPost {
 }
 
 // ---------------------------------------------------------------------------
+// Embed parsing
+// ---------------------------------------------------------------------------
+
+fn parse_embed_media(html: &str) -> Result<EmbedMedia> {
+    let marker_index = html.find(EMBED_MARKER).ok_or(InstagramError::MissingData)?;
+    let value_start = marker_index + EMBED_MARKER.len() - 1;
+
+    // The marker points at an escaped JSON string inside an inline script, so
+    // decode just that string and then parse its contents.
+    let mut values = serde_json::Deserializer::from_str(&html[value_start..]).into_iter::<String>();
+    let context_json = values.next().ok_or(InstagramError::MissingData)??;
+
+    let context: EmbedContext = serde_json::from_str(&context_json)?;
+    context
+        .gql_data
+        .and_then(|data| data.shortcode_media)
+        .ok_or(InstagramError::MissingData)
+}
+
+fn normalize_embed_item(item: &EmbedMedia) -> InstagramPost {
+    let is_video = item.is_video.unwrap_or(false);
+    let media_type = match item.typename.as_deref() {
+        Some("GraphSidecar") => MediaType::Sidecar,
+        Some("GraphVideo") => MediaType::Video,
+        Some("GraphImage") => MediaType::Image,
+        _ if is_video => MediaType::Video,
+        _ => MediaType::Image,
+    };
+
+    let media_items = if let Some(children) = item.edge_sidecar_to_children.as_ref() {
+        children
+            .edges
+            .iter()
+            .map(|edge| {
+                if edge.node.is_video.unwrap_or(false) {
+                    CarouselItem::Video {
+                        url: edge
+                            .node
+                            .video_url
+                            .clone()
+                            .or_else(|| edge.node.display_url.clone())
+                            .unwrap_or_default(),
+                    }
+                } else {
+                    CarouselItem::Image {
+                        url: edge.node.display_url.clone().unwrap_or_default(),
+                    }
+                }
+            })
+            .collect()
+    } else if is_video {
+        vec![CarouselItem::Video {
+            url: item
+                .video_url
+                .clone()
+                .or_else(|| item.display_url.clone())
+                .unwrap_or_default(),
+        }]
+    } else {
+        vec![CarouselItem::Image {
+            url: item.display_url.clone().unwrap_or_default(),
+        }]
+    };
+
+    let caption = item
+        .edge_media_to_caption
+        .as_ref()
+        .and_then(|edges| edges.edges.first())
+        .and_then(|edge| edge.node.text.clone())
+        .unwrap_or_default();
+
+    let like_count = item
+        .edge_liked_by
+        .as_ref()
+        .and_then(|count| count.count)
+        .or_else(|| {
+            item.edge_media_preview_like
+                .as_ref()
+                .and_then(|count| count.count)
+        })
+        .unwrap_or(0);
+    let comment_count = item
+        .edge_media_to_comment
+        .as_ref()
+        .and_then(|count| count.count)
+        .unwrap_or(0);
+
+    let owner = item
+        .owner
+        .as_ref()
+        .map(|owner| MediaOwner {
+            username: owner.username.clone().unwrap_or_default(),
+            full_name: owner.full_name.clone().unwrap_or_default(),
+            is_verified: owner.is_verified.unwrap_or(false),
+            is_private: owner.is_private.unwrap_or(false),
+        })
+        .unwrap_or(MediaOwner {
+            username: String::new(),
+            full_name: String::new(),
+            is_verified: false,
+            is_private: false,
+        });
+
+    InstagramPost {
+        shortcode: item.shortcode.clone().unwrap_or_default(),
+        media_type,
+        media_items,
+        thumbnail_url: if is_video {
+            item.display_url.clone()
+        } else {
+            None
+        },
+        caption,
+        owner,
+        like_count,
+        comment_count,
+        dimensions: item.dimensions.clone(),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Client
 // ---------------------------------------------------------------------------
 
@@ -510,6 +731,33 @@ impl InstagramClient {
             http_client,
             csrf: OnceCell::new(),
         }
+    }
+
+    /// Fetch media for a post/reel/igtv by shortcode via the public embed page.
+    ///
+    /// The embed endpoint is served without authentication to link-preview
+    /// crawlers, unlike the anonymous GraphQL API which now answers with
+    /// `401 require_login`.
+    pub async fn fetch_media_item_from_embed(&self, shortcode: &str) -> Result<InstagramPost> {
+        let url = format!("{BASE_URL}/p/{shortcode}/embed/captioned/");
+        let response = self
+            .http_client
+            .get(url)
+            .header(USER_AGENT, CRAWLER_USER_AGENT)
+            .send()
+            .await?;
+
+        let status = response.status();
+        let html = response.text().await?;
+        if !status.is_success() {
+            return Err(InstagramError::Embed {
+                status,
+                body: html.chars().take(500).collect(),
+            });
+        }
+
+        let media = parse_embed_media(&html)?;
+        Ok(normalize_embed_item(&media))
     }
 
     /// Fetch (or return cached) CSRF token from instagram.com.
@@ -611,6 +859,99 @@ impl InstagramClient {
     pub async fn fetch_from_url(&self, url: &str) -> Result<InstagramPost> {
         let resolved = self.resolve_share(url).await?;
         let shortcode = extract_shortcode(&resolved);
-        self.fetch_media_item(&shortcode).await
+        self.fetch_media_item_from_embed(&shortcode).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn embed_html(context: serde_json::Value) -> String {
+        let context_json = serde_json::to_string(&context).unwrap();
+        let encoded = serde_json::to_string(&context_json).unwrap();
+        format!("<html><script>s.handle({{\"contextJSON\":{encoded}}});</script></html>")
+    }
+
+    #[test]
+    fn parses_video_embed() {
+        let html = embed_html(json!({
+            "context": {"type": "GraphVideo", "shortcode": "DfHo8XJSXBP"},
+            "gql_data": {"shortcode_media": {
+                "__typename": "GraphVideo",
+                "id": "4019361262332375119",
+                "shortcode": "DfHo8XJSXBP",
+                "is_video": true,
+                "display_url": "https://example.com/thumb.jpg",
+                "video_url": "https://example.com/video.mp4",
+                "dimensions": {"height": 854, "width": 480},
+                "owner": {"username": "ice.warrior100k", "is_verified": false},
+                "edge_media_to_caption": {"edges": [{"node": {"text": "caption"}}]},
+                "edge_liked_by": {"count": 626654},
+                "edge_media_to_comment": {"count": 3986}
+            }}
+        }));
+
+        let media = parse_embed_media(&html).unwrap();
+        let post = normalize_embed_item(&media);
+
+        assert_eq!(post.shortcode, "DfHo8XJSXBP");
+        assert_eq!(post.media_type, MediaType::Video);
+        assert_eq!(post.media_items.len(), 1);
+        assert_eq!(post.media_items[0].url(), "https://example.com/video.mp4");
+        assert_eq!(
+            post.thumbnail_url.as_deref(),
+            Some("https://example.com/thumb.jpg")
+        );
+        assert_eq!(post.caption, "caption");
+        assert_eq!(post.owner.username, "ice.warrior100k");
+        assert_eq!(post.like_count, 626654);
+        assert_eq!(post.comment_count, 3986);
+        assert_eq!(
+            post.dimensions.as_ref().map(|d| (d.width, d.height)),
+            Some((480, 854))
+        );
+    }
+
+    #[test]
+    fn parses_sidecar_embed() {
+        let html = embed_html(json!({
+            "gql_data": {"shortcode_media": {
+                "__typename": "GraphSidecar",
+                "shortcode": "DfIY71Lku89",
+                "is_video": false,
+                "display_url": "https://example.com/first.jpg",
+                "edge_sidecar_to_children": {"edges": [
+                    {"node": {"is_video": false, "display_url": "https://example.com/one.jpg"}},
+                    {"node": {"is_video": true, "display_url": "https://example.com/two.jpg", "video_url": "https://example.com/two.mp4"}}
+                ]}
+            }}
+        }));
+
+        let media = parse_embed_media(&html).unwrap();
+        let post = normalize_embed_item(&media);
+
+        assert_eq!(post.media_type, MediaType::Sidecar);
+        assert_eq!(post.media_items.len(), 2);
+        assert_eq!(post.media_items[0].url(), "https://example.com/one.jpg");
+        assert_eq!(post.media_items[1].url(), "https://example.com/two.mp4");
+        assert_eq!(post.thumbnail_url, None);
+    }
+
+    #[test]
+    fn strips_query_from_shortcode() {
+        assert_eq!(
+            extract_shortcode("https://www.instagram.com/reel/DfHo8XJSXBP/?cplk=aGc5"),
+            "DfHo8XJSXBP"
+        );
+        assert_eq!(
+            extract_shortcode("https://www.instagram.com/reel/DfHo8XJSXBP?cplk=aGc5"),
+            "DfHo8XJSXBP"
+        );
+        assert_eq!(
+            extract_shortcode("https://www.instagram.com/p/DfHo8XJSXBP/"),
+            "DfHo8XJSXBP"
+        );
     }
 }
