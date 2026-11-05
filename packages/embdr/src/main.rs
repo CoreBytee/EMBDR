@@ -178,6 +178,7 @@ impl EMBDR {
 
                     tracing::error!(
                         error = ?media_data_result.unwrap_err(),
+                        link = ?embeddable_urls[0],
                         "Failed to extract media from the provided link"
                     );
                 }
