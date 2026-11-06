@@ -321,13 +321,28 @@ struct EmbedChild {
 // Constants
 // ---------------------------------------------------------------------------
 
-const DOC_ID_FETCH_MEDIA: &str = "27128499623469141";
+const DOC_ID_FETCH_MEDIA: &str = "27830990013244856";
 const DOC_ID_FETCH_PLAY_COUNT: &str = "27234427476213202";
 
 const BASE_URL: &str = "https://www.instagram.com";
 const GRAPHQL_URL: &str = "https://www.instagram.com/graphql/query";
 
+/// The public web GraphQL endpoint. Unlike `GRAPHQL_URL` it does not require a
+/// logged-in session as long as the request carries an `lsd` token, the web
+/// app id and the `PolarisPostRootQuery` friendly name.
+const PUBLIC_GRAPHQL_URL: &str = "https://www.instagram.com/api/graphql";
+const FRIENDLY_NAME_FETCH_MEDIA: &str = "PolarisPostRootQuery";
+
+const PUBLIC_WEB_APP_ID: &str = "936619743392459";
+const PUBLIC_WEB_ASBD_ID: &str = "129477";
+
 const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.3";
+
+/// Instagram answers `/api/graphql` with the JavaScript shell (a 200 text/html
+/// page) instead of JSON for desktop Chrome and Firefox user agents. The Safari
+/// user agent is served the GraphQL payload, which is why instagrapi uses it
+/// for its public requests too.
+const PUBLIC_GRAPHQL_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/11.1.2 Safari/605.1.15";
 
 /// Instagram serves the server-rendered embed payload (including `contextJSON`)
 /// to link-preview crawlers, while browsers get a JavaScript shell.
@@ -382,10 +397,21 @@ pub fn extract_shortcode(url: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Share URL resolution
+// LSD token
 // ---------------------------------------------------------------------------
 
-/// Resolve an `/share/` redirect to the canonical Instagram URL.
+/// Markers used by Instagram's bootloader to expose the `LSD` token.
+const LSD_TOKEN_MARKERS: [&str; 2] = [r#"["LSD",[],{"token":""#, r#""LSD",[],{"token":""#];
+
+/// Extract the `LSD` token from an Instagram page.
+fn extract_lsd_token(html: &str) -> Option<String> {
+    LSD_TOKEN_MARKERS.iter().find_map(|marker| {
+        let value_start = html.find(marker)? + marker.len();
+        let value_rest = &html[value_start..];
+        let value_end = value_rest.find('"')?;
+        Some(value_rest[..value_end].to_string())
+    })
+}
 
 // ---------------------------------------------------------------------------
 // GraphQL helpers
@@ -404,7 +430,7 @@ fn default_headers(csrf: Option<&str>) -> HeaderMap {
             HeaderValue::from_str(csrf).unwrap_or(HeaderValue::from_static("")),
         );
     }
-    headers.insert("X-IG-App-ID", HeaderValue::from_static("936619743392459"));
+    headers.insert("X-IG-App-ID", HeaderValue::from_static(PUBLIC_WEB_APP_ID));
     headers.insert(
         "X-Requested-With",
         HeaderValue::from_static("XMLHttpRequest"),
@@ -412,31 +438,67 @@ fn default_headers(csrf: Option<&str>) -> HeaderMap {
     headers
 }
 
-/// Perform a GraphQL POST with automatic retry on 429 / 403.
-async fn graphql_post(
-    client: &Client,
-    csrf: &str,
-    doc_id: &str,
-    variables: serde_json::Value,
-) -> Result<serde_json::Value> {
-    let body_str = format!(
-        "variables={}&doc_id={}",
-        urlencoding::encode(&variables.to_string()),
-        doc_id,
+/// Headers used by the anonymous public web GraphQL endpoint.
+fn public_graphql_headers(
+    lsd_token: Option<&str>,
+    referer: &str,
+    friendly_name: &str,
+) -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        USER_AGENT,
+        HeaderValue::from_static(PUBLIC_GRAPHQL_USER_AGENT),
     );
+    headers.insert(reqwest::header::ACCEPT, HeaderValue::from_static("*/*"));
+    headers.insert(
+        reqwest::header::ACCEPT_LANGUAGE,
+        HeaderValue::from_static("en-US,en;q=0.8"),
+    );
+    headers.insert(
+        REFERER,
+        HeaderValue::from_str(referer).unwrap_or(HeaderValue::from_static(BASE_URL)),
+    );
+    headers.insert(reqwest::header::ORIGIN, HeaderValue::from_static(BASE_URL));
+    headers.insert("X-ASBD-ID", HeaderValue::from_static(PUBLIC_WEB_ASBD_ID));
+    headers.insert("X-IG-App-ID", HeaderValue::from_static(PUBLIC_WEB_APP_ID));
+    headers.insert(
+        "X-FB-Friendly-Name",
+        HeaderValue::from_str(friendly_name).unwrap_or(HeaderValue::from_static("")),
+    );
+    if let Some(lsd_token) = lsd_token {
+        headers.insert(
+            "X-FB-LSD",
+            HeaderValue::from_str(lsd_token).unwrap_or(HeaderValue::from_static("")),
+        );
+    }
+    headers
+}
 
-    let headers = default_headers(Some(csrf));
+fn encode_form(fields: &[(&str, &str)]) -> String {
+    fields
+        .iter()
+        .map(|(key, value)| format!("{}={}", key, urlencoding::encode(value)))
+        .collect::<Vec<_>>()
+        .join("&")
+}
 
+/// Perform a GraphQL POST with automatic retry on 429 / 403.
+async fn post_graphql(
+    client: &Client,
+    url: &str,
+    headers: HeaderMap,
+    body: String,
+) -> Result<serde_json::Value> {
     let mut last_status = None;
     for attempt in 0..MAX_RETRIES {
         let resp = client
-            .post(GRAPHQL_URL)
+            .post(url)
             .headers(headers.clone())
             .header(
                 reqwest::header::CONTENT_TYPE,
                 "application/x-www-form-urlencoded",
             )
-            .body(body_str.clone())
+            .body(body.clone())
             .send()
             .await?;
 
@@ -455,7 +517,16 @@ async fn graphql_post(
         }
 
         if status.is_success() {
-            return resp.json::<serde_json::Value>().await.map_err(Into::into);
+            let body = resp.text().await.unwrap_or_default();
+            return match serde_json::from_str::<serde_json::Value>(&body) {
+                Ok(value) => Ok(value),
+                // Instagram sometimes answers a successful status with its
+                // HTML shell instead of JSON; surface the body for debugging.
+                Err(_) => Err(InstagramError::GraphQl {
+                    status,
+                    body: body.chars().take(500).collect(),
+                }),
+            };
         }
 
         let body = resp.text().await.unwrap_or_default();
@@ -474,6 +545,50 @@ async fn graphql_post(
     }
 
     Err(InstagramError::RateLimited)
+}
+
+/// Query the legacy `/graphql/query` endpoint (used for the clips fallback).
+async fn graphql_post(
+    client: &Client,
+    csrf: &str,
+    doc_id: &str,
+    variables: serde_json::Value,
+) -> Result<serde_json::Value> {
+    let variables = variables.to_string();
+    let body = encode_form(&[("variables", &variables), ("doc_id", doc_id)]);
+    let headers = default_headers(Some(csrf));
+
+    post_graphql(client, GRAPHQL_URL, headers, body).await
+}
+
+/// Query the anonymous public web GraphQL endpoint (`/api/graphql`).
+///
+/// This is the endpoint Instagram's own web client uses. It returns the
+/// `xdt_api__v1__media__shortcode__web_info` payload for every media type
+/// (image, video and carousel), unlike the embed page which stopped carrying
+/// `contextJSON` for single-image posts.
+async fn public_graphql_post(
+    client: &Client,
+    doc_id: &str,
+    variables: serde_json::Value,
+    lsd_token: Option<&str>,
+    referer: &str,
+    friendly_name: &str,
+) -> Result<serde_json::Value> {
+    let variables = variables.to_string();
+    let mut fields = vec![
+        ("variables", variables.as_str()),
+        ("doc_id", doc_id),
+        ("server_timestamps", "true"),
+    ];
+    if let Some(lsd_token) = lsd_token {
+        fields.push(("lsd", lsd_token));
+    }
+
+    let body = encode_form(&fields);
+    let headers = public_graphql_headers(lsd_token, referer, friendly_name);
+
+    post_graphql(client, PUBLIC_GRAPHQL_URL, headers, body).await
 }
 
 // ---------------------------------------------------------------------------
@@ -736,8 +851,10 @@ impl InstagramClient {
     /// Fetch media for a post/reel/igtv by shortcode via the public embed page.
     ///
     /// The embed endpoint is served without authentication to link-preview
-    /// crawlers, unlike the anonymous GraphQL API which now answers with
-    /// `401 require_login`.
+    /// crawlers and page `contextJSON` for video and carousel posts. Instagram
+    /// stopped including that payload for single-image posts (it answers
+    /// `"contextJSON":null` instead), so [`Self::fetch_media_item`] is the
+    /// fallback for those.
     pub async fn fetch_media_item_from_embed(&self, shortcode: &str) -> Result<InstagramPost> {
         let url = format!("{BASE_URL}/p/{shortcode}/embed/captioned/");
         let response = self
@@ -769,16 +886,47 @@ impl InstagramClient {
         Ok(token.as_str())
     }
 
+    /// Fetch the `LSD` token Instagram expects on public GraphQL requests.
+    ///
+    /// The token is embedded in every page's bootloader payload. It is not
+    /// strictly required for the media query, so a missing token is not an
+    /// error — the request is simply sent without it.
+    async fn fetch_lsd_token(&self, referer: &str) -> Option<String> {
+        let response = self
+            .http_client
+            .get(referer)
+            .header(USER_AGENT, PUBLIC_GRAPHQL_USER_AGENT)
+            .send()
+            .await
+            .ok()?;
+
+        let html = response.text().await.ok()?;
+        extract_lsd_token(&html)
+    }
+
     /// Fetch media for a post/reel/igtv by shortcode.
+    ///
+    /// Uses Instagram's public web GraphQL endpoint, which answers without a
+    /// session and covers image, video and carousel posts.
     pub async fn fetch_media_item(&self, shortcode: &str) -> Result<InstagramPost> {
-        let csrf = self.get_csrf_token().await?;
+        let referer = format!("{BASE_URL}/p/{shortcode}/");
+        let lsd_token = self.fetch_lsd_token(&referer).await;
 
         let variables = json!({
             "shortcode": shortcode,
-            "__relay_internal__pv__PolarisAIGMMediaWebLabelEnabledrelayprovider": false,
+            "__relay_internal__pv__PolarisShortDramaEnabledrelayprovider": false,
+            "__relay_internal__pv__PolarisMultiCaptionCarouselEnabledrelayprovider": true,
         });
 
-        let json = graphql_post(&self.http_client, &csrf, DOC_ID_FETCH_MEDIA, variables).await?;
+        let json = public_graphql_post(
+            &self.http_client,
+            DOC_ID_FETCH_MEDIA,
+            variables,
+            lsd_token.as_deref(),
+            &referer,
+            FRIENDLY_NAME_FETCH_MEDIA,
+        )
+        .await?;
 
         let items = json
             .pointer("/data/xdt_api__v1__media__shortcode__web_info/items")
@@ -817,7 +965,7 @@ impl InstagramClient {
         });
 
         let json =
-            graphql_post(&self.http_client, &csrf, DOC_ID_FETCH_PLAY_COUNT, variables).await?;
+            graphql_post(&self.http_client, csrf, DOC_ID_FETCH_PLAY_COUNT, variables).await?;
 
         let edges = json
             .pointer("/data/xdt_api__v1__clips__user__connection_v2/edges")
@@ -856,10 +1004,26 @@ impl InstagramClient {
 
     /// Convenience: fetch media from a raw Instagram URL (handles share
     /// resolution, shortcode extraction, and fetching in one call).
+    ///
+    /// The embed page is tried first because a single request is enough for
+    /// video and carousel posts. The public GraphQL endpoint is used when the
+    /// embed page has no `contextJSON` payload, which is what Instagram returns
+    /// for single-image posts.
     pub async fn fetch_from_url(&self, url: &str) -> Result<InstagramPost> {
         let resolved = self.resolve_share(url).await?;
         let shortcode = extract_shortcode(&resolved);
-        self.fetch_media_item_from_embed(&shortcode).await
+
+        match self.fetch_media_item_from_embed(&shortcode).await {
+            Ok(post) => Ok(post),
+            Err(embed_error) => {
+                tracing::debug!(
+                    error = ?embed_error,
+                    shortcode = shortcode,
+                    "Instagram embed extraction failed, falling back to public GraphQL"
+                );
+                self.fetch_media_item(&shortcode).await
+            }
+        }
     }
 }
 
@@ -952,6 +1116,69 @@ mod tests {
         assert_eq!(
             extract_shortcode("https://www.instagram.com/p/DfHo8XJSXBP/"),
             "DfHo8XJSXBP"
+        );
+    }
+
+    #[test]
+    fn extracts_lsd_token_from_bootloader_payload() {
+        let html = r#"<script>require(["Bootloader"],function(b){b.handle(["LSD",[],{"token":"AdRls42S_yYLawLab23DX7kjOQs"}])})</script>"#;
+        assert_eq!(
+            extract_lsd_token(html).as_deref(),
+            Some("AdRls42S_yYLawLab23DX7kjOQs")
+        );
+
+        let fallback_marker = r#"{"LSD",[],{"token":"shortToken"}"#;
+        assert_eq!(
+            extract_lsd_token(fallback_marker).as_deref(),
+            Some("shortToken")
+        );
+
+        assert_eq!(extract_lsd_token("<html>no token here</html>"), None);
+    }
+
+    #[test]
+    fn parses_public_graphql_image_payload() {
+        let payload = json!({
+            "data": {"xdt_api__v1__media__shortcode__web_info": {"items": [{
+                "pk": "4021793451401780101",
+                "code": "DfQR9Xuy5uF",
+                "media_type": 1,
+                "original_width": 1184,
+                "original_height": 1568,
+                "image_versions2": {"candidates": [
+                    {"url": "https://example.com/full.jpg", "width": 1184, "height": 1568}
+                ]},
+                "user": {
+                    "pk": "40563360963",
+                    "username": "oiaflol",
+                    "full_name": "Owens Memes",
+                    "is_verified": false,
+                    "is_private": false
+                },
+                "caption": {"text": "Nome completo: Derek"},
+                "like_count": 184601,
+                "comment_count": 267
+            }]}}
+        });
+
+        let items = payload
+            .pointer("/data/xdt_api__v1__media__shortcode__web_info/items")
+            .and_then(|value| value.as_array())
+            .unwrap();
+        let item: RawMediaItem = serde_json::from_value(items[0].clone()).unwrap();
+        let post = normalize_item(&item);
+
+        assert_eq!(post.shortcode, "DfQR9Xuy5uF");
+        assert_eq!(post.media_type, MediaType::Image);
+        assert_eq!(post.media_items.len(), 1);
+        assert_eq!(post.media_items[0].url(), "https://example.com/full.jpg");
+        assert_eq!(post.caption, "Nome completo: Derek");
+        assert_eq!(post.owner.username, "oiaflol");
+        assert_eq!(post.like_count, 184601);
+        assert_eq!(post.comment_count, 267);
+        assert_eq!(
+            post.dimensions.as_ref().map(|d| (d.width, d.height)),
+            Some((1184, 1568))
         );
     }
 }
