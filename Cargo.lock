@@ -725,7 +725,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "url",
  "urlencoding",
 ]
 

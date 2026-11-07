@@ -86,9 +86,6 @@ pub enum InstagramError {
     #[error("GraphQL request failed with status {status}: {body}")]
     GraphQl { status: StatusCode, body: String },
 
-    #[error("Embed request failed with status {status}: {body}")]
-    Embed { status: StatusCode, body: String },
-
     #[error("API returned no items for shortcode {shortcode}")]
     NoItems { shortcode: String },
 
@@ -229,95 +226,6 @@ impl CarouselItem {
 }
 
 // ---------------------------------------------------------------------------
-// Types — embed page (`/p/{shortcode}/embed/captioned/`)
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Deserialize)]
-struct EmbedContext {
-    #[serde(default)]
-    gql_data: Option<EmbedGqlData>,
-}
-
-#[derive(Debug, Deserialize)]
-struct EmbedGqlData {
-    #[serde(default)]
-    shortcode_media: Option<EmbedMedia>,
-}
-
-#[derive(Debug, Deserialize)]
-struct EmbedMedia {
-    #[serde(rename = "__typename", default)]
-    typename: Option<String>,
-    #[serde(default)]
-    shortcode: Option<String>,
-    #[serde(default)]
-    is_video: Option<bool>,
-    #[serde(default)]
-    display_url: Option<String>,
-    #[serde(default)]
-    video_url: Option<String>,
-    #[serde(default)]
-    dimensions: Option<Dimensions>,
-    #[serde(default)]
-    owner: Option<EmbedOwner>,
-    #[serde(default)]
-    edge_media_to_caption: Option<EmbedEdges<EmbedCaption>>,
-    #[serde(default)]
-    edge_liked_by: Option<EmbedCount>,
-    #[serde(default)]
-    edge_media_preview_like: Option<EmbedCount>,
-    #[serde(default)]
-    edge_media_to_comment: Option<EmbedCount>,
-    #[serde(default)]
-    edge_sidecar_to_children: Option<EmbedEdges<EmbedChild>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct EmbedOwner {
-    #[serde(default)]
-    username: Option<String>,
-    #[serde(default)]
-    full_name: Option<String>,
-    #[serde(default)]
-    is_verified: Option<bool>,
-    #[serde(default)]
-    is_private: Option<bool>,
-}
-
-#[derive(Debug, Deserialize)]
-struct EmbedEdges<T> {
-    #[serde(default)]
-    edges: Vec<EmbedEdge<T>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct EmbedEdge<T> {
-    node: T,
-}
-
-#[derive(Debug, Default, Deserialize)]
-struct EmbedCaption {
-    #[serde(default)]
-    text: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct EmbedCount {
-    #[serde(default)]
-    count: Option<u64>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-struct EmbedChild {
-    #[serde(default)]
-    is_video: Option<bool>,
-    #[serde(default)]
-    display_url: Option<String>,
-    #[serde(default)]
-    video_url: Option<String>,
-}
-
-// ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
@@ -343,13 +251,6 @@ const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7
 /// user agent is served the GraphQL payload, which is why instagrapi uses it
 /// for its public requests too.
 const PUBLIC_GRAPHQL_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/11.1.2 Safari/605.1.15";
-
-/// Instagram serves the server-rendered embed payload (including `contextJSON`)
-/// to link-preview crawlers, while browsers get a JavaScript shell.
-const CRAWLER_USER_AGENT: &str =
-    "Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)";
-
-const EMBED_MARKER: &str = "\"contextJSON\":\"";
 
 const MAX_RETRIES: u32 = 3;
 
@@ -411,6 +312,22 @@ fn extract_lsd_token(html: &str) -> Option<String> {
         let value_end = value_rest.find('"')?;
         Some(value_rest[..value_end].to_string())
     })
+}
+
+/// Fetch the `LSD` token from the Instagram homepage.
+///
+/// The token is sent along with the public GraphQL request for parity with the
+/// web client. The homepage response also seeds the client's cookie store.
+async fn fetch_lsd_token(client: &Client) -> Option<String> {
+    let response = client
+        .get(BASE_URL)
+        .header(USER_AGENT, PUBLIC_GRAPHQL_USER_AGENT)
+        .send()
+        .await
+        .ok()?;
+
+    let html = response.text().await.ok()?;
+    extract_lsd_token(&html)
 }
 
 // ---------------------------------------------------------------------------
@@ -565,8 +482,7 @@ async fn graphql_post(
 ///
 /// This is the endpoint Instagram's own web client uses. It returns the
 /// `xdt_api__v1__media__shortcode__web_info` payload for every media type
-/// (image, video and carousel), unlike the embed page which stopped carrying
-/// `contextJSON` for single-image posts.
+/// (image, video and carousel).
 async fn public_graphql_post(
     client: &Client,
     doc_id: &str,
@@ -594,6 +510,11 @@ async fn public_graphql_post(
 // ---------------------------------------------------------------------------
 // Normalize helper
 // ---------------------------------------------------------------------------
+
+/// A post is only usable when every media item resolved to a URL.
+fn has_complete_media(post: &InstagramPost) -> bool {
+    !post.media_items.is_empty() && post.media_items.iter().all(|item| !item.url().is_empty())
+}
 
 fn normalize_item(item: &RawMediaItem) -> InstagramPost {
     let media_type: MediaType = item.media_type.unwrap_or(1).into();
@@ -698,135 +619,15 @@ fn normalize_item(item: &RawMediaItem) -> InstagramPost {
 }
 
 // ---------------------------------------------------------------------------
-// Embed parsing
-// ---------------------------------------------------------------------------
-
-fn parse_embed_media(html: &str) -> Result<EmbedMedia> {
-    let marker_index = html.find(EMBED_MARKER).ok_or(InstagramError::MissingData)?;
-    let value_start = marker_index + EMBED_MARKER.len() - 1;
-
-    // The marker points at an escaped JSON string inside an inline script, so
-    // decode just that string and then parse its contents.
-    let mut values = serde_json::Deserializer::from_str(&html[value_start..]).into_iter::<String>();
-    let context_json = values.next().ok_or(InstagramError::MissingData)??;
-
-    let context: EmbedContext = serde_json::from_str(&context_json)?;
-    context
-        .gql_data
-        .and_then(|data| data.shortcode_media)
-        .ok_or(InstagramError::MissingData)
-}
-
-fn normalize_embed_item(item: &EmbedMedia) -> InstagramPost {
-    let is_video = item.is_video.unwrap_or(false);
-    let media_type = match item.typename.as_deref() {
-        Some("GraphSidecar") => MediaType::Sidecar,
-        Some("GraphVideo") => MediaType::Video,
-        Some("GraphImage") => MediaType::Image,
-        _ if is_video => MediaType::Video,
-        _ => MediaType::Image,
-    };
-
-    let media_items = if let Some(children) = item.edge_sidecar_to_children.as_ref() {
-        children
-            .edges
-            .iter()
-            .map(|edge| {
-                if edge.node.is_video.unwrap_or(false) {
-                    CarouselItem::Video {
-                        url: edge
-                            .node
-                            .video_url
-                            .clone()
-                            .or_else(|| edge.node.display_url.clone())
-                            .unwrap_or_default(),
-                    }
-                } else {
-                    CarouselItem::Image {
-                        url: edge.node.display_url.clone().unwrap_or_default(),
-                    }
-                }
-            })
-            .collect()
-    } else if is_video {
-        vec![CarouselItem::Video {
-            url: item
-                .video_url
-                .clone()
-                .or_else(|| item.display_url.clone())
-                .unwrap_or_default(),
-        }]
-    } else {
-        vec![CarouselItem::Image {
-            url: item.display_url.clone().unwrap_or_default(),
-        }]
-    };
-
-    let caption = item
-        .edge_media_to_caption
-        .as_ref()
-        .and_then(|edges| edges.edges.first())
-        .and_then(|edge| edge.node.text.clone())
-        .unwrap_or_default();
-
-    let like_count = item
-        .edge_liked_by
-        .as_ref()
-        .and_then(|count| count.count)
-        .or_else(|| {
-            item.edge_media_preview_like
-                .as_ref()
-                .and_then(|count| count.count)
-        })
-        .unwrap_or(0);
-    let comment_count = item
-        .edge_media_to_comment
-        .as_ref()
-        .and_then(|count| count.count)
-        .unwrap_or(0);
-
-    let owner = item
-        .owner
-        .as_ref()
-        .map(|owner| MediaOwner {
-            username: owner.username.clone().unwrap_or_default(),
-            full_name: owner.full_name.clone().unwrap_or_default(),
-            is_verified: owner.is_verified.unwrap_or(false),
-            is_private: owner.is_private.unwrap_or(false),
-        })
-        .unwrap_or(MediaOwner {
-            username: String::new(),
-            full_name: String::new(),
-            is_verified: false,
-            is_private: false,
-        });
-
-    InstagramPost {
-        shortcode: item.shortcode.clone().unwrap_or_default(),
-        media_type,
-        media_items,
-        thumbnail_url: if is_video {
-            item.display_url.clone()
-        } else {
-            None
-        },
-        caption,
-        owner,
-        like_count,
-        comment_count,
-        dimensions: item.dimensions.clone(),
-    }
-}
-
-// ---------------------------------------------------------------------------
 // Client
 // ---------------------------------------------------------------------------
 
 /// Instagram API client that manages a `reqwest::Client` with cookie store
-/// and a cached CSRF token.
+/// and cached anonymous tokens.
 pub struct InstagramClient {
     http_client: Client,
     csrf: OnceCell<String>,
+    lsd_token: OnceCell<Option<String>>,
 }
 
 impl InstagramClient {
@@ -837,6 +638,7 @@ impl InstagramClient {
         Ok(Self {
             http_client: client,
             csrf: OnceCell::new(),
+            lsd_token: OnceCell::new(),
         })
     }
 
@@ -845,36 +647,8 @@ impl InstagramClient {
         Self {
             http_client,
             csrf: OnceCell::new(),
+            lsd_token: OnceCell::new(),
         }
-    }
-
-    /// Fetch media for a post/reel/igtv by shortcode via the public embed page.
-    ///
-    /// The embed endpoint is served without authentication to link-preview
-    /// crawlers and page `contextJSON` for video and carousel posts. Instagram
-    /// stopped including that payload for single-image posts (it answers
-    /// `"contextJSON":null` instead), so [`Self::fetch_media_item`] is the
-    /// fallback for those.
-    pub async fn fetch_media_item_from_embed(&self, shortcode: &str) -> Result<InstagramPost> {
-        let url = format!("{BASE_URL}/p/{shortcode}/embed/captioned/");
-        let response = self
-            .http_client
-            .get(url)
-            .header(USER_AGENT, CRAWLER_USER_AGENT)
-            .send()
-            .await?;
-
-        let status = response.status();
-        let html = response.text().await?;
-        if !status.is_success() {
-            return Err(InstagramError::Embed {
-                status,
-                body: html.chars().take(500).collect(),
-            });
-        }
-
-        let media = parse_embed_media(&html)?;
-        Ok(normalize_embed_item(&media))
     }
 
     /// Fetch (or return cached) CSRF token from instagram.com.
@@ -886,31 +660,26 @@ impl InstagramClient {
         Ok(token.as_str())
     }
 
-    /// Fetch the `LSD` token Instagram expects on public GraphQL requests.
+    /// Fetch (or return cached) `LSD` token from instagram.com.
     ///
-    /// The token is embedded in every page's bootloader payload. It is not
-    /// strictly required for the media query, so a missing token is not an
-    /// error — the request is simply sent without it.
-    async fn fetch_lsd_token(&self, referer: &str) -> Option<String> {
-        let response = self
-            .http_client
-            .get(referer)
-            .header(USER_AGENT, PUBLIC_GRAPHQL_USER_AGENT)
-            .send()
+    /// The token is embedded in every page's bootloader payload and is fetched
+    /// once per client. It is not strictly required for the media query, so a
+    /// missing token is not an error — the request is simply sent without it.
+    async fn get_lsd_token(&self) -> Option<&str> {
+        self.lsd_token
+            .get_or_init(|| async { fetch_lsd_token(&self.http_client).await })
             .await
-            .ok()?;
-
-        let html = response.text().await.ok()?;
-        extract_lsd_token(&html)
+            .as_deref()
     }
 
     /// Fetch media for a post/reel/igtv by shortcode.
     ///
     /// Uses Instagram's public web GraphQL endpoint, which answers without a
-    /// session and covers image, video and carousel posts.
+    /// session and covers image, video and carousel posts, and always includes
+    /// `video_versions` for videos.
     pub async fn fetch_media_item(&self, shortcode: &str) -> Result<InstagramPost> {
         let referer = format!("{BASE_URL}/p/{shortcode}/");
-        let lsd_token = self.fetch_lsd_token(&referer).await;
+        let lsd_token = self.get_lsd_token().await;
 
         let variables = json!({
             "shortcode": shortcode,
@@ -922,7 +691,7 @@ impl InstagramClient {
             &self.http_client,
             DOC_ID_FETCH_MEDIA,
             variables,
-            lsd_token.as_deref(),
+            lsd_token,
             &referer,
             FRIENDLY_NAME_FETCH_MEDIA,
         )
@@ -944,9 +713,12 @@ impl InstagramClient {
                 .clone(),
         )?;
 
-        let normalized = normalize_item(&item);
+        let post = normalize_item(&item);
+        if !has_complete_media(&post) {
+            return Err(InstagramError::MissingData);
+        }
 
-        Ok(normalized)
+        Ok(post)
     }
 
     /// Fetch play count via the clips connection fallback.
@@ -1004,26 +776,11 @@ impl InstagramClient {
 
     /// Convenience: fetch media from a raw Instagram URL (handles share
     /// resolution, shortcode extraction, and fetching in one call).
-    ///
-    /// The embed page is tried first because a single request is enough for
-    /// video and carousel posts. The public GraphQL endpoint is used when the
-    /// embed page has no `contextJSON` payload, which is what Instagram returns
-    /// for single-image posts.
     pub async fn fetch_from_url(&self, url: &str) -> Result<InstagramPost> {
         let resolved = self.resolve_share(url).await?;
         let shortcode = extract_shortcode(&resolved);
 
-        match self.fetch_media_item_from_embed(&shortcode).await {
-            Ok(post) => Ok(post),
-            Err(embed_error) => {
-                tracing::debug!(
-                    error = ?embed_error,
-                    shortcode = shortcode,
-                    "Instagram embed extraction failed, falling back to public GraphQL"
-                );
-                self.fetch_media_item(&shortcode).await
-            }
-        }
+        self.fetch_media_item(&shortcode).await
     }
 }
 
@@ -1031,77 +788,6 @@ impl InstagramClient {
 mod tests {
     use super::*;
     use serde_json::json;
-
-    fn embed_html(context: serde_json::Value) -> String {
-        let context_json = serde_json::to_string(&context).unwrap();
-        let encoded = serde_json::to_string(&context_json).unwrap();
-        format!("<html><script>s.handle({{\"contextJSON\":{encoded}}});</script></html>")
-    }
-
-    #[test]
-    fn parses_video_embed() {
-        let html = embed_html(json!({
-            "context": {"type": "GraphVideo", "shortcode": "DfHo8XJSXBP"},
-            "gql_data": {"shortcode_media": {
-                "__typename": "GraphVideo",
-                "id": "4019361262332375119",
-                "shortcode": "DfHo8XJSXBP",
-                "is_video": true,
-                "display_url": "https://example.com/thumb.jpg",
-                "video_url": "https://example.com/video.mp4",
-                "dimensions": {"height": 854, "width": 480},
-                "owner": {"username": "ice.warrior100k", "is_verified": false},
-                "edge_media_to_caption": {"edges": [{"node": {"text": "caption"}}]},
-                "edge_liked_by": {"count": 626654},
-                "edge_media_to_comment": {"count": 3986}
-            }}
-        }));
-
-        let media = parse_embed_media(&html).unwrap();
-        let post = normalize_embed_item(&media);
-
-        assert_eq!(post.shortcode, "DfHo8XJSXBP");
-        assert_eq!(post.media_type, MediaType::Video);
-        assert_eq!(post.media_items.len(), 1);
-        assert_eq!(post.media_items[0].url(), "https://example.com/video.mp4");
-        assert_eq!(
-            post.thumbnail_url.as_deref(),
-            Some("https://example.com/thumb.jpg")
-        );
-        assert_eq!(post.caption, "caption");
-        assert_eq!(post.owner.username, "ice.warrior100k");
-        assert_eq!(post.like_count, 626654);
-        assert_eq!(post.comment_count, 3986);
-        assert_eq!(
-            post.dimensions.as_ref().map(|d| (d.width, d.height)),
-            Some((480, 854))
-        );
-    }
-
-    #[test]
-    fn parses_sidecar_embed() {
-        let html = embed_html(json!({
-            "gql_data": {"shortcode_media": {
-                "__typename": "GraphSidecar",
-                "shortcode": "DfIY71Lku89",
-                "is_video": false,
-                "display_url": "https://example.com/first.jpg",
-                "edge_sidecar_to_children": {"edges": [
-                    {"node": {"is_video": false, "display_url": "https://example.com/one.jpg"}},
-                    {"node": {"is_video": true, "display_url": "https://example.com/two.jpg", "video_url": "https://example.com/two.mp4"}}
-                ]}
-            }}
-        }));
-
-        let media = parse_embed_media(&html).unwrap();
-        let post = normalize_embed_item(&media);
-
-        assert_eq!(post.media_type, MediaType::Sidecar);
-        assert_eq!(post.media_items.len(), 2);
-        assert_eq!(post.media_items[0].url(), "https://example.com/one.jpg");
-        assert_eq!(post.media_items[1].url(), "https://example.com/two.mp4");
-        assert_eq!(post.thumbnail_url, None);
-    }
 
     #[test]
     fn strips_query_from_shortcode() {
@@ -1180,5 +866,65 @@ mod tests {
             post.dimensions.as_ref().map(|d| (d.width, d.height)),
             Some((1184, 1568))
         );
+    }
+
+    #[test]
+    fn parses_public_graphql_video_payload() {
+        let payload = json!({
+            "data": {"xdt_api__v1__media__shortcode__web_info": {"items": [{
+                "pk": "3890123456789012345",
+                "code": "DTnSIf9CYU6",
+                "media_type": 2,
+                "product_type": "clips",
+                "original_width": 720,
+                "original_height": 1280,
+                "image_versions2": {"candidates": [
+                    {"url": "https://example.com/thumbnail.jpg", "width": 1080, "height": 1920}
+                ]},
+                "video_versions": [
+                    {"url": "https://example.com/video.mp4", "width": 720, "height": 1280}
+                ],
+                "user": {"username": "oiaflol", "full_name": "Owens Memes"},
+                "caption": {"text": "reel caption"},
+                "like_count": 100,
+                "comment_count": 5
+            }]}}
+        });
+
+        let items = payload
+            .pointer("/data/xdt_api__v1__media__shortcode__web_info/items")
+            .and_then(|value| value.as_array())
+            .unwrap();
+        let item: RawMediaItem = serde_json::from_value(items[0].clone()).unwrap();
+        let post = normalize_item(&item);
+
+        assert_eq!(post.media_type, MediaType::Video);
+        assert_eq!(post.media_items[0].url(), "https://example.com/video.mp4");
+        assert_eq!(
+            post.thumbnail_url.as_deref(),
+            Some("https://example.com/thumbnail.jpg")
+        );
+        assert!(has_complete_media(&post));
+    }
+
+    #[test]
+    fn rejects_post_without_media_urls() {
+        let payload = json!({
+            "data": {"xdt_api__v1__media__shortcode__web_info": {"items": [{
+                "code": "DTnSIf9CYU6",
+                "media_type": 2,
+                "user": {"username": "oiaflol"},
+                "caption": {"text": "reel caption"}
+            }]}}
+        });
+
+        let items = payload
+            .pointer("/data/xdt_api__v1__media__shortcode__web_info/items")
+            .and_then(|value| value.as_array())
+            .unwrap();
+        let item: RawMediaItem = serde_json::from_value(items[0].clone()).unwrap();
+        let post = normalize_item(&item);
+
+        assert!(!has_complete_media(&post));
     }
 }
