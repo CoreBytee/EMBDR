@@ -72,7 +72,7 @@ Please follow the existing code style and include clear commit messages.
 There is a workflow in this repository to publish a new release. To activate it, create a new tag and push it to GitHub:
 
 ```sh
-git tag v1.0.0-beta.5
+git tag v1.0.0
 git push origin --tags
 ```
 
