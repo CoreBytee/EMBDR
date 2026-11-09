@@ -32,6 +32,7 @@ reqwest = { version = "0.12", features = ["cookies"] }
 
 # Other
 async-trait = "0.1.92"
+emojis = "0.9.1"
 url = "2.5.8"
 scraper = "0.22"
 thiserror = "2"

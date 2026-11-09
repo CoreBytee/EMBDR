@@ -8,7 +8,10 @@ use twilight_model::channel::message::{
 };
 use twilight_util::builder::message::{ContainerBuilder, SeparatorBuilder, TextDisplayBuilder};
 
-use crate::{sources::Sources, utility::extract_urls::extract_urls};
+use crate::{
+    sources::Sources,
+    utility::{extract_urls::extract_urls, markdown::masked_link},
+};
 
 mod sources;
 mod utility;
@@ -86,20 +89,21 @@ impl EMBDR {
 
                     let header = match (&media_data.title, &media_data.community) {
                         (Some(title), Some(community)) => format!(
-                            "## [{}]({}) · [{}]({})",
-                            community.name, community.url, title, media_data.url
+                            "## {} · {}",
+                            masked_link(&community.name, &community.url),
+                            masked_link(title, &media_data.url)
                         ),
-                        (Some(title), None) => format!("## [{}]({})", title, media_data.url),
+                        (Some(title), None) => {
+                            format!("## {}", masked_link(title, &media_data.url))
+                        }
                         (None, Some(community)) => format!(
-                            "## [{}]({}) · Post by [{}]({})",
-                            community.name,
-                            community.url,
-                            media_data.author.name,
-                            media_data.author.url
+                            "## {} · Post by {}",
+                            masked_link(&community.name, &community.url),
+                            masked_link(&media_data.author.name, &media_data.author.url)
                         ),
                         (None, None) => format!(
-                            "## Post by [{}]({})",
-                            media_data.author.name, media_data.author.url
+                            "## Post by {}",
+                            masked_link(&media_data.author.name, &media_data.author.url)
                         ),
                     };
 
