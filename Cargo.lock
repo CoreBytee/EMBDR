@@ -258,7 +258,7 @@ checksum = "b2972feb8dffe7bc8c5463b1dacda1b0dfbed3710e50f977d965429692d74cd8"
 
 [[package]]
 name = "embdr"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "async-trait",
  "dotenvy",
@@ -727,7 +727,7 @@ dependencies = [
 
 [[package]]
 name = "instagram-client"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "reqwest",
  "serde",
@@ -1241,7 +1241,7 @@ checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 
 [[package]]
 name = "reddit-client"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "reqwest",
  "scraper",
@@ -1832,7 +1832,7 @@ dependencies = [
 
 [[package]]
 name = "tiktok-client"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "reqwest",
  "scraper",

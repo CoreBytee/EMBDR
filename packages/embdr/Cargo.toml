@@ -1,6 +1,6 @@
 [package]
 name = "embdr"
-version = "0.1.0"
+version = "0.0.0"
 edition = "2024"
 
 [dependencies]
@@ -25,7 +25,12 @@ twilight-model = "0.17.1"
 twilight-util = { version = "0.17.0", features = ["builder"] }
 
 # TLS crypto provider for rustls (used by twilight)
-rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
+rustls = { version = "0.23", default-features = false, features = [
+    "ring",
+    "logging",
+    "std",
+    "tls12",
+] }
 
 # HTTP (for proxy support)
 reqwest = { version = "0.12", features = ["cookies"] }
