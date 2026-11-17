@@ -22,24 +22,6 @@ fn is_emoji_character(character: char) -> bool {
     emojis::get(character.encode_utf8(&mut buffer)).is_some()
 }
 
-/// Escapes characters that Discord would otherwise interpret as markdown.
-fn escape_markdown(text: &str) -> String {
-    let mut escaped = String::with_capacity(text.len());
-
-    for character in text.chars() {
-        if matches!(
-            character,
-            '\\' | '`' | '*' | '_' | '~' | '|' | '>' | '[' | ']'
-        ) {
-            escaped.push('\\');
-        }
-
-        escaped.push(character);
-    }
-
-    escaped
-}
-
 /// Escapes characters that would prematurely end a masked link destination.
 fn escape_link_target(url: &str) -> String {
     url.replace('(', "%28").replace(')', "%29")
@@ -49,8 +31,11 @@ fn escape_link_target(url: &str) -> String {
 ///
 /// Discord does not render masked links when the label contains an emoji, so
 /// the label is split into linked text segments and unlinked emoji segments.
-/// Markdown characters in the label and parentheses in the URL are escaped so
-/// the link is always parsed correctly.
+/// Parentheses in the URL are escaped so the link is always parsed correctly.
+///
+/// The label itself is not escaped: Discord disabled backslash escapes inside
+/// masked link titles, so they would be displayed literally. Brackets are safe
+/// in the label, which only ends at the `]` that is followed by `(`.
 pub fn masked_link(label: &str, url: &str) -> String {
     let mut result = String::new();
     let mut text_segment = String::new();
@@ -59,11 +44,7 @@ pub fn masked_link(label: &str, url: &str) -> String {
     for character in label.chars() {
         if is_emoji_character(character) {
             if !text_segment.is_empty() {
-                result.push_str(&format!(
-                    "[{}]({})",
-                    escape_markdown(&text_segment),
-                    link_target
-                ));
+                result.push_str(&format!("[{}]({})", text_segment, link_target));
                 text_segment.clear();
             }
 
@@ -74,11 +55,7 @@ pub fn masked_link(label: &str, url: &str) -> String {
     }
 
     if !text_segment.is_empty() {
-        result.push_str(&format!(
-            "[{}]({})",
-            escape_markdown(&text_segment),
-            link_target
-        ));
+        result.push_str(&format!("[{}]({})", text_segment, link_target));
     }
 
     result
@@ -92,10 +69,7 @@ mod tests {
 
     #[test]
     fn test_masked_link_without_emoji() {
-        assert_eq!(
-            masked_link("r/ik_ihe", URL),
-            format!("[r/ik\\_ihe]({})", URL)
-        );
+        assert_eq!(masked_link("r/ik_ihe", URL), format!("[r/ik_ihe]({})", URL));
     }
 
     #[test]
@@ -108,17 +82,22 @@ mod tests {
 
     #[test]
     fn test_masked_link_with_leading_emoji() {
-        assert_eq!(
-            masked_link("🩵ik_ihe", URL),
-            format!("🩵[ik\\_ihe]({})", URL)
-        );
+        assert_eq!(masked_link("🩵ik_ihe", URL), format!("🩵[ik_ihe]({})", URL));
     }
 
     #[test]
     fn test_masked_link_with_brackets() {
         assert_eq!(
             masked_link("[OC] Title", URL),
-            format!("[\\[OC\\] Title]({})", URL)
+            format!("[[OC] Title]({})", URL)
+        );
+    }
+
+    #[test]
+    fn test_masked_link_with_nested_brackets() {
+        assert_eq!(
+            masked_link("test[ more test", URL),
+            format!("[test[ more test]({})", URL)
         );
     }
 
@@ -126,7 +105,7 @@ mod tests {
     fn test_masked_link_with_unmatched_closing_bracket() {
         assert_eq!(
             masked_link("Title] here", URL),
-            format!("[Title\\] here]({})", URL)
+            format!("[Title] here]({})", URL)
         );
     }
 
@@ -134,7 +113,7 @@ mod tests {
     fn test_masked_link_with_markdown_formatting() {
         assert_eq!(
             masked_link("*star* _underline_ ~strike~", URL),
-            format!("[\\*star\\* \\_underline\\_ \\~strike\\~]({})", URL)
+            format!("[*star* _underline_ ~strike~]({})", URL)
         );
     }
 
@@ -142,7 +121,7 @@ mod tests {
     fn test_masked_link_with_backslash() {
         assert_eq!(
             masked_link("back\\slash", URL),
-            format!("[back\\\\slash]({})", URL)
+            format!("[back\\slash]({})", URL)
         );
     }
 
