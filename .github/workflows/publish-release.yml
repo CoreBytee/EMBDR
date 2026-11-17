@@ -8,27 +8,45 @@ on:
         tags:
             - "v*"
 jobs:
-    publish-release:
-        name: Publish release
-        runs-on: ubuntu-24.04-arm
+    build:
+        name: Build binary (${{ matrix.arch }})
+        strategy:
+            matrix:
+                include:
+                    - arch: arm64
+                      runner: ubuntu-24.04-arm
+                    - arch: amd64
+                      runner: ubuntu-24.04
+        runs-on: ${{ matrix.runner }}
         steps:
             - uses: actions/checkout@v6
 
             - name: Build binary
               run: cargo build --release --verbose
 
-            - run: cp target/release/embdr ./embdr-arm64
+            - run: cp target/release/embdr ./embdr-${{ matrix.arch }}
+
+            - uses: actions/upload-artifact@v7
+              with:
+                  name: embdr-${{ matrix.arch }}
+                  path: ./embdr-${{ matrix.arch }}
+                  archive: false
+    publish-release:
+        name: Publish release
+        needs: build
+        runs-on: ubuntu-24.04-arm
+        steps:
+            - uses: actions/download-artifact@v8
+              with:
+                  merge-multiple: true
+                  path: .
 
             - name: Publish release
               uses: softprops/action-gh-release@v3
               with:
-                  files: ./embdr-arm64
+                  files: |
+                      embdr-arm64
+                      embdr-amd64
                   generate_release_notes: true
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-            - uses: actions/upload-artifact@v7
-              with:
-                  name: embdr-arm64
-                  path: ./embdr-arm64
-                  archive: false

@@ -2,21 +2,30 @@ name: Build binary
 on:
     workflow_dispatch:
     push:
-        branches: [main]
+        branches:
+            - main
 jobs:
     build-binary:
-        name: Build binary
-        runs-on: ubuntu-24.04-arm
+        name: Build binary (${{ matrix.arch }})
+        strategy:
+            matrix:
+                include:
+                    - arch: arm64
+                      runner: ubuntu-24.04-arm
+                    - arch: amd64
+                      runner: ubuntu-24.04
+        runs-on: ${{ matrix.runner }}
         steps:
             - uses: actions/checkout@v6
 
             - name: Build binary
               run: cargo build --verbose
 
-            - run: cp target/debug/embdr ./embdr-arm64
+            - run: cp target/debug/embdr ./embdr-${{ matrix.arch }}
 
             - uses: actions/upload-artifact@v7
+              continue-on-error: true
               with:
-                  name: embdr-arm64
-                  path: ./embdr-arm64
+                  name: embdr-${{ matrix.arch }}
+                  path: ./embdr-${{ matrix.arch }}
                   archive: false
