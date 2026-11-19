@@ -1,1 +1,2 @@
 - No abbreviations in variable, function or other names.
+- Read README.md on how to create releases
