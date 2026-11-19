@@ -1,0 +1,49 @@
+name: opencode
+on:
+    issue_comment:
+        types: [created]
+    pull_request_review_comment:
+        types: [created]
+jobs:
+    opencode:
+        if: |
+            github.event.comment.user.type != 'Bot' &&
+            (contains(github.event.comment.body, '/oc') ||
+             contains(github.event.comment.body, '/opencode') ||
+             contains(github.event.comment.body, '@opencode-agent'))
+        runs-on: ubuntu-latest
+        concurrency:
+            group: opencode-${{ github.event.issue.number || github.event.pull_request.number }}
+            cancel-in-progress: false
+        permissions:
+            id-token: write
+            contents: read
+            actions: write
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v6
+              with:
+                  fetch-depth: 1
+                  persist-credentials: false
+
+            - name: Sign in to OpenCode
+              env:
+                  AUDIENCE: https://opencode.ai/console
+              run: |
+                  oidc=$(curl -sSf --oauth2-bearer "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+                    "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUDIENCE" | jq -r .value)
+                  token=$(curl -sSf https://opencode.ai/console/auth/oauth/token \
+                    -d grant_type=urn:ietf:params:oauth:grant-type:token-exchange \
+                    -d subject_token_type=urn:ietf:params:oauth:token-type:jwt \
+                    -d client_id=sk_a8980087-79b8-4784-950f-be6b93b4ba01 \
+                    -d subject_token="$oidc" | jq -r .access_token)
+                  echo "::add-mask::$token"
+                  echo "OPENCODE_API_KEY=$token" >> "$GITHUB_ENV"
+
+            - name: Run OpenCode
+              uses: anomalyco/opencode/github@latest
+              env:
+                  OPENCODE_PERMISSION: '{"*":"allow","question":"deny"}'
+              with:
+                  model: opencode-go/deepseek-v4.1-flash
+                  mentions: /opencode,/oc,@opencode-agent
